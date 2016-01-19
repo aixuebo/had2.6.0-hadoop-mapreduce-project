@@ -1,0 +1,214 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.apache.hadoop.mapreduce.lib.chain;
+
+import java.io.IOException;
+
+import org.apache.hadoop.classification.InterfaceAudience;
+import org.apache.hadoop.classification.InterfaceStability;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.lib.chain.Chain.ChainBlockingQueue;
+
+/**
+ * The ChainMapper class allows to use multiple Mapper classes within a single
+ * Map task.
+ * 
+ * <p>
+ * The Mapper classes are invoked in a chained (or piped) fashion, the output of
+ * the first becomes the input of the second, and so on until the last Mapper,
+ * the output of the last Mapper will be written to the task's output.
+ * </p>
+ * <p>
+ * The key functionality of this feature is that the Mappers in the chain do not
+ * need to be aware that they are executed in a chain. This enables having
+ * reusable specialized Mappers that can be combined to perform composite
+ * operations within a single task.
+ * </p>
+ * <p>
+ * Special care has to be taken when creating chains that the key/values output
+ * by a Mapper are valid for the following Mapper in the chain. It is assumed
+ * all Mappers and the Reduce in the chain use matching output and input key and
+ * value classes as no conversion is done by the chaining code.
+ * </p>
+ * <p>
+ * Using the ChainMapper and the ChainReducer classes is possible to compose
+ * Map/Reduce jobs that look like <code>[MAP+ / REDUCE MAP*]</code>. And
+ * immediate benefit of this pattern is a dramatic reduction in disk IO.
+ * </p>
+ * <p>
+ * IMPORTANT: There is no need to specify the output key/value classes for the
+ * ChainMapper, this is done by the addMapper for the last mapper in the chain.
+ * </p>
+ * ChainMapper usage pattern:
+ * <p/>
+ * 
+ * <pre>
+ * ...
+ * Job = new Job(conf);
+ * <p/>
+ * Configuration mapAConf = new Configuration(false);
+ * ...
+ * ChainMapper.addMapper(job, AMap.class, LongWritable.class, Text.class,
+ *   Text.class, Text.class, true, mapAConf);
+ * <p/>
+ * Configuration mapBConf = new Configuration(false);
+ * ...
+ * ChainMapper.addMapper(job, BMap.class, Text.class, Text.class,
+ *   LongWritable.class, Text.class, false, mapBConf);
+ * <p/>
+ * ...
+ * <p/>
+ * job.waitForComplettion(true);
+ * ...
+ * </pre>
+ * 
+ * 
+ * 
+该链条逻辑留存:
+设置mapper对象到配置文件中
+   * 1.校验
+   * 2.获取该map的索引顺序
+   * 3.在主job配置文件中设置key为前缀_map_索引 value是map对应的实现类
+   * 4.校验输入是否是上一个的输出
+   * 5.设置该map私有的配置文件,将该map的输入输出key-value设置到私有的配置中
+   * 6.强私有的map配置添加到主配置文件中
+   * 7.累加Map的索引数量+1
+  protected static void addMapper(boolean isMap, Job job,
+      Class<? extends Mapper> klass, Class<?> inputKeyClass,
+      Class<?> inputValueClass, Class<?> outputKeyClass,
+      Class<?> outputValueClass, Configuration mapperConf) {
+
+设置reduce对象到配置文件中
+   *1.校验
+   *2.在主job配置中设置reduce的class
+   *3.在reduce自己的配置文件中配置输入输出的key-value对象
+   *4.将reduce自己的配置文件写入主job的配置文件中        
+  protected static void setReducer(Job job, Class<? extends Reducer> klass,
+      Class<?> inputKeyClass, Class<?> inputValueClass,
+      Class<?> outputKeyClass, Class<?> outputValueClass,
+      Configuration reducerConf) {
+
+
+setup方法调用,初始化所有配置的Map对象和reduce对象
+
+实例化Map和reduce,添加到Thread线程集合中
+
+
+  // start all the threads 线程集合一个接一个的去执行
+  void startAllThreads() {
+    for (Thread thread : threads) {
+      thread.start();
+    }
+  }
+
+
+ * 该链条是:只有map集合用于组装，不能用reduce操作
+ */
+@InterfaceAudience.Public
+@InterfaceStability.Stable
+public class ChainMapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT> extends
+    Mapper<KEYIN, VALUEIN, KEYOUT, VALUEOUT> {
+
+  /**
+   * Adds a {@link Mapper} class to the chain mapper.
+   * 
+   * <p>
+   * The key and values are passed from one element of the chain to the next, by
+   * value. For the added Mapper the configuration given for it,
+   * <code>mapperConf</code>, have precedence over the job's Configuration. This
+   * precedence is in effect when the task is running.
+   * </p>
+   * <p>
+   * IMPORTANT: There is no need to specify the output key/value classes for the
+   * ChainMapper, this is done by the addMapper for the last mapper in the chain
+   * </p>
+   * 
+   * @param job
+   *          The job. 整个job的总的配置文件
+   * @param klass
+   *          the Mapper class to add.
+   * @param inputKeyClass
+   *          mapper input key class.
+   * @param inputValueClass
+   *          mapper input value class.
+   * @param outputKeyClass
+   *          mapper output key class.
+   * @param outputValueClass
+   *          mapper output value class.
+   * @param mapperConf 属于该map任务独有的配置文件
+   *          a configuration for the Mapper class. It is recommended to use a
+   *          Configuration without default values using the
+   *          <code>Configuration(boolean loadDefaults)</code> constructor with
+   *          FALSE.
+   */
+  public static void addMapper(Job job, Class<? extends Mapper> klass,
+      Class<?> inputKeyClass, Class<?> inputValueClass,
+      Class<?> outputKeyClass, Class<?> outputValueClass,
+      Configuration mapperConf) throws IOException {
+    job.setMapperClass(ChainMapper.class);
+    job.setMapOutputKeyClass(outputKeyClass);
+    job.setMapOutputValueClass(outputValueClass);
+    Chain.addMapper(true, job, klass, inputKeyClass, inputValueClass,
+        outputKeyClass, outputValueClass, mapperConf);
+  }
+
+  private Chain chain;
+
+  protected void setup(Context context) {
+    chain = new Chain(true);
+    //真正的组装链条信息
+    chain.setup(context.getConfiguration());
+  }
+
+  public void run(Context context) throws IOException, InterruptedException {
+
+    setup(context);
+
+    int numMappers = chain.getAllMappers().size();
+    if (numMappers == 0) {
+      return;
+    }
+
+    ChainBlockingQueue<Chain.KeyValuePair<?, ?>> inputqueue;//输入队列
+    ChainBlockingQueue<Chain.KeyValuePair<?, ?>> outputqueue;//输出队列
+    if (numMappers == 1) {//就一个mapp,因此用单线程方法运行该mapp即可
+      chain.runMapper(context, 0);
+    } else {
+      // add all the mappers with proper context
+      // add first mapper
+      outputqueue = chain.createBlockingQueue();
+      chain.addMapper(context, outputqueue, 0);//添加第一个map对象到线程队列中,从输入源中读取信息.写入输出队列中
+      // add other mappers
+      for (int i = 1; i < numMappers - 1; i++) {//运行除了第一个和最后一个之外中间的mapp对象
+        inputqueue = outputqueue;//输入就是上一个输出
+        outputqueue = chain.createBlockingQueue();//重新建立一个输出
+        chain.addMapper(inputqueue, outputqueue, context, i);//输出输出都是队列,运行第i个Map对象实例
+      }
+      // add last mapper//运行最后一个Map实例,输入是队列.输出是输出流
+      chain.addMapper(outputqueue, context, numMappers - 1);
+    }
+    
+    // start all threads 启动线程集合去一个接一个的执行
+    chain.startAllThreads();
+    
+    // wait for all threads
+    chain.joinAllThreads();
+  }
+}
