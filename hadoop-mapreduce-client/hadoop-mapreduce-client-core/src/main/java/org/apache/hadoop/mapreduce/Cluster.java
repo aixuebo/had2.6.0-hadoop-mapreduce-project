@@ -163,6 +163,7 @@ public class Cluster {
    * @return object of FileSystem
    * @throws IOException
    * @throws InterruptedException
+   * 如果yarn上配置的client.getSystemDir()是linux路径,则返回本地文件系统,如果是HDFS路径.则返回HDFS集群文件系统
    */
   public synchronized FileSystem getFileSystem() 
       throws IOException, InterruptedException {

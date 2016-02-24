@@ -69,7 +69,7 @@ public class JobSplit {
    *     该定义是job文件
    */
   public static class SplitMetaInfo implements Writable {
-    private long startOffset;//split对象在job.split文件中的偏移量
+    private long startOffset;//split对象在整个输入源的偏移量
     private long inputDataLength;//split对象在job.split文件中的所占字节长度
     private String[] locations;//split对象在哪些节点上存储
 

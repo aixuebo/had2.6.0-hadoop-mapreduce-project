@@ -39,7 +39,7 @@ import org.apache.hadoop.yarn.ipc.YarnRPC;
 public class ClientCache {
 
   private final Configuration conf;
-  private final ResourceMgrDelegate rm;
+  private final ResourceMgrDelegate rm;//yarn的代理客户端
 
   private static final Log LOG = LogFactory.getLog(ClientCache.class);
 

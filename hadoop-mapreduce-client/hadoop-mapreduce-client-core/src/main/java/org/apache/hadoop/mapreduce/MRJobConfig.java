@@ -389,10 +389,12 @@ public interface MRJobConfig {
 
   public static final String MR_PREFIX = "yarn.app.mapreduce.";
 
+  //yarn.app.mapreduce.am.
   public static final String MR_AM_PREFIX = MR_PREFIX + "am.";//yarn.app.mapreduce.am.
 
   /** The number of client retries to the AM - before reconnecting to the RM
    * to fetch Application State. 
+   * yarn.app.mapreduce.client-am.ipc.max-retries
    */
   public static final String MR_CLIENT_TO_AM_IPC_MAX_RETRIES = 
     MR_PREFIX + "client-am.ipc.max-retries";
@@ -400,6 +402,7 @@ public interface MRJobConfig {
   
   /** The number of client retries on socket timeouts to the AM - before
    * reconnecting to the RM to fetch Application Status.
+   * yarn.app.mapreduce.client-am.ipc.max-retries-on-timeouts
    */
   public static final String MR_CLIENT_TO_AM_IPC_MAX_RETRIES_ON_TIMEOUTS =
     MR_PREFIX + "client-am.ipc.max-retries-on-timeouts";
@@ -408,51 +411,68 @@ public interface MRJobConfig {
 
   /**
    * The number of client retries to the RM/HS before throwing exception.
+   * yarn.app.mapreduce.client.max-retries
    */
   public static final String MR_CLIENT_MAX_RETRIES = 
     MR_PREFIX + "client.max-retries";
   public static final int DEFAULT_MR_CLIENT_MAX_RETRIES = 3;
   
-  /** The staging directory for map reduce.*/
+  /** The staging directory for map reduce.
+   * yarn.app.mapreduce.am.staging-dir
+   * */
   public static final String MR_AM_STAGING_DIR = 
     MR_AM_PREFIX+"staging-dir";//yarn.app.mapreduce.am.staging-dir   是job运行时的临时文件夹，默认值是/tmp/hadoop-yarn/staging
   public static final String DEFAULT_MR_AM_STAGING_DIR = 
     "/tmp/hadoop-yarn/staging";
 
-  /** The amount of memory the MR app master needs.*/
+  /** The amount of memory the MR app master needs.
+   * yarn.app.mapreduce.am.resource.mb
+   * */
   public static final String MR_AM_VMEM_MB =
     MR_AM_PREFIX+"resource.mb";
   public static final int DEFAULT_MR_AM_VMEM_MB = 1536;
 
-  /** The number of virtual cores the MR app master needs.*/
+  /** The number of virtual cores the MR app master needs.
+   * yarn.app.mapreduce.am.resource.cpu-vcores
+   * */
   public static final String MR_AM_CPU_VCORES =
     MR_AM_PREFIX+"resource.cpu-vcores";
   public static final int DEFAULT_MR_AM_CPU_VCORES = 1;
 
-  /** Command line arguments passed to the MR app master.*/
+  /** Command line arguments passed to the MR app master.
+   * yarn.app.mapreduce.am.command-opts
+   * */
   public static final String MR_AM_COMMAND_OPTS =
     MR_AM_PREFIX+"command-opts";
   public static final String DEFAULT_MR_AM_COMMAND_OPTS = "-Xmx1024m";
 
-  /** Admin command opts passed to the MR app master.*/
+  /** Admin command opts passed to the MR app master.
+   * yarn.app.mapreduce.am.admin-command-opts
+   * */
   public static final String MR_AM_ADMIN_COMMAND_OPTS =
       MR_AM_PREFIX+"admin-command-opts";
   public static final String DEFAULT_MR_AM_ADMIN_COMMAND_OPTS = "";
   
-  /** Root Logging level passed to the MR app master.*/
+  /** Root Logging level passed to the MR app master.
+   * yarn.app.mapreduce.am.log.level
+   * */
   public static final String MR_AM_LOG_LEVEL = 
     MR_AM_PREFIX+"log.level";
   public static final String DEFAULT_MR_AM_LOG_LEVEL = "INFO";
 
+  //yarn.app.mapreduce.am.container.log.limit.kb
   public static final String MR_AM_LOG_KB =
       MR_AM_PREFIX + "container.log.limit.kb";
   public static final int DEFAULT_MR_AM_LOG_KB = 0; // don't roll
 
+  //yarn.app.mapreduce.am.container.log.backups
   public static final String MR_AM_LOG_BACKUPS =
       MR_AM_PREFIX + "container.log.backups";
   public static final int DEFAULT_MR_AM_LOG_BACKUPS = 0;
 
-  /**The number of splits when reporting progress in MR*/
+  /**The number of splits when reporting progress in MR
+   * yarn.app.mapreduce.am.num-progress-splits
+   * */
   public static final String MR_AM_NUM_PROGRESS_SPLITS = 
     MR_AM_PREFIX+"num-progress-splits";
   public static final int DEFAULT_MR_AM_NUM_PROGRESS_SPLITS = 12;
@@ -460,6 +480,7 @@ public interface MRJobConfig {
   /**
    * Upper limit on the number of threads user to launch containers in the app
    * master. Expect level config, you shouldn't be needing it in most cases.
+   * yarn.app.mapreduce.am.containerlauncher.thread-count-limit
    */
   public static final String MR_AM_CONTAINERLAUNCHER_THREAD_COUNT_LIMIT =
     MR_AM_PREFIX+"containerlauncher.thread-count-limit";
@@ -467,7 +488,9 @@ public interface MRJobConfig {
   public static final int DEFAULT_MR_AM_CONTAINERLAUNCHER_THREAD_COUNT_LIMIT = 
       500;
 
-  /** Number of threads to handle job client RPC requests.*/
+  /** Number of threads to handle job client RPC requests.
+   * yarn.app.mapreduce.am.job.client.thread-count
+   * */
   public static final String MR_AM_JOB_CLIENT_THREAD_COUNT =
     MR_AM_PREFIX + "job.client.thread-count";
   public static final int DEFAULT_MR_AM_JOB_CLIENT_THREAD_COUNT = 1;
@@ -475,21 +498,28 @@ public interface MRJobConfig {
   /** 
    * Range of ports that the MapReduce AM can use when binding. Leave blank
    * if you want all possible ports.
+   * yarn.app.mapreduce.am.job.client.port-range
    */
   public static final String MR_AM_JOB_CLIENT_PORT_RANGE = 
     MR_AM_PREFIX + "job.client.port-range";
   
-  /** Enable blacklisting of nodes in the job.*/
+  /** Enable blacklisting of nodes in the job.
+   * yarn.app.mapreduce.am.job.node-blacklisting.enable
+   * */
   public static final String MR_AM_JOB_NODE_BLACKLISTING_ENABLE = 
     MR_AM_PREFIX  + "job.node-blacklisting.enable";
 
-  /** Ignore blacklisting if a certain percentage of nodes have been blacklisted */
+  /** Ignore blacklisting if a certain percentage of nodes have been blacklisted 
+   * yarn.app.mapreduce.am.job.node-blacklisting.ignore-threshold-node-percent
+   * */
   public static final String MR_AM_IGNORE_BLACKLISTING_BLACKLISTED_NODE_PERECENT =
       MR_AM_PREFIX + "job.node-blacklisting.ignore-threshold-node-percent";
   public static final int DEFAULT_MR_AM_IGNORE_BLACKLISTING_BLACKLISTED_NODE_PERCENT =
       33;
   
-  /** Enable job recovery.*/
+  /** Enable job recovery.
+   * yarn.app.mapreduce.am.job.recovery.enable
+   * */
   public static final String MR_AM_JOB_RECOVERY_ENABLE = 
     MR_AM_PREFIX + "job.recovery.enable";
   public static final boolean MR_AM_JOB_RECOVERY_ENABLE_DEFAULT = true;
@@ -497,6 +527,7 @@ public interface MRJobConfig {
   /** 
    * Limit on the number of reducers that can be preempted to ensure that at
    *  least one map task can run if it needs to. Percentage between 0.0 and 1.0
+   *  yarn.app.mapreduce.am.job.reduce.preemption.limit
    */
   public static final String MR_AM_JOB_REDUCE_PREEMPTION_LIMIT = 
     MR_AM_PREFIX  + "job.reduce.preemption.limit";
@@ -510,20 +541,27 @@ public interface MRJobConfig {
   /**
    * Limit reduces starting until a certain percentage of maps have finished.
    *  Percentage between 0.0 and 1.0
+   *  yarn.app.mapreduce.am.job.reduce.rampup.limit
    */
   public static final String MR_AM_JOB_REDUCE_RAMPUP_UP_LIMIT = 
     MR_AM_PREFIX  + "job.reduce.rampup.limit";
   public static final float DEFAULT_MR_AM_JOB_REDUCE_RAMP_UP_LIMIT = 0.5f;
 
-  /** The class that should be used for speculative execution calculations.*/
+  /** The class that should be used for speculative execution calculations.
+   * yarn.app.mapreduce.am.job.speculator.class
+   * */
   public static final String MR_AM_JOB_SPECULATOR =
     MR_AM_PREFIX + "job.speculator.class";
 
-  /** Class used to estimate task resource needs.*/
+  /** Class used to estimate task resource needs.
+   * yarn.app.mapreduce.am.job.task.estimator.class
+   * */
   public static final String MR_AM_TASK_ESTIMATOR =
     MR_AM_PREFIX + "job.task.estimator.class";
 
-  /** The lambda value in the smoothing function of the task estimator.*/
+  /** The lambda value in the smoothing function of the task estimator.
+   * yarn.app.mapreduce.am.job.task.estimator.exponential.smooth.lambda-ms
+   * */
   public static final String MR_AM_TASK_ESTIMATOR_SMOOTH_LAMBDA_MS =
     MR_AM_PREFIX
     + "job.task.estimator.exponential.smooth.lambda-ms";
@@ -531,16 +569,22 @@ public interface MRJobConfig {
   public static final long DEFAULT_MR_AM_TASK_ESTIMATOR_SMOOTH_LAMBDA_MS = 
   1000L * 60;
 
-  /** true if the smoothing rate should be exponential.*/
+  /** true if the smoothing rate should be exponential.
+   * yarn.app.mapreduce.am.job.task.estimator.exponential.smooth.rate
+   * */
   public static final String MR_AM_TASK_ESTIMATOR_EXPONENTIAL_RATE_ENABLE =
     MR_AM_PREFIX + "job.task.estimator.exponential.smooth.rate";
 
-  /** The number of threads used to handle task RPC calls.*/
+  /** The number of threads used to handle task RPC calls.
+   * yarn.app.mapreduce.am.job.task.listener.thread-count
+   * */
   public static final String MR_AM_TASK_LISTENER_THREAD_COUNT =
     MR_AM_PREFIX + "job.task.listener.thread-count";
   public static final int DEFAULT_MR_AM_TASK_LISTENER_THREAD_COUNT = 30;
 
-  /** How often the AM should send heartbeats to the RM.*/
+  /** How often the AM should send heartbeats to the RM.
+   * yarn.app.mapreduce.am.scheduler.heartbeat.interval-ms
+   * */
   public static final String MR_AM_TO_RM_HEARTBEAT_INTERVAL_MS =
     MR_AM_PREFIX + "scheduler.heartbeat.interval-ms";
   public static final int DEFAULT_MR_AM_TO_RM_HEARTBEAT_INTERVAL_MS = 1000;
@@ -549,6 +593,7 @@ public interface MRJobConfig {
    * If contact with RM is lost, the AM will wait MR_AM_TO_RM_WAIT_INTERVAL_MS
    * milliseconds before aborting. During this interval, AM will still try
    * to contact the RM.
+   * yarn.app.mapreduce.am.scheduler.connection.wait.interval-ms
    */
   public static final String MR_AM_TO_RM_WAIT_INTERVAL_MS =
     MR_AM_PREFIX + "scheduler.connection.wait.interval-ms";
@@ -557,6 +602,7 @@ public interface MRJobConfig {
   /**
    * How long to wait in milliseconds for the output committer to cancel
    * an operation when the job is being killed
+   * yarn.app.mapreduce.am.job.committer.cancel-timeout
    */
   public static final String MR_AM_COMMITTER_CANCEL_TIMEOUT_MS =
       MR_AM_PREFIX + "job.committer.cancel-timeout";
@@ -568,6 +614,8 @@ public interface MRJobConfig {
    * If contact with the RM has occurred within this window then commit
    * operations are allowed, otherwise the AM will not allow output committer
    * operations until contact with the RM has been re-established.
+   * 
+   * yarn.app.mapreduce.am.job.committer.commit-window
    */
   public static final String MR_AM_COMMIT_WINDOW_MS =
       MR_AM_PREFIX + "job.committer.commit-window";
@@ -577,25 +625,31 @@ public interface MRJobConfig {
    * Boolean. Create the base dirs in the JobHistoryEventHandler
    * Set to false for multi-user clusters.  This is an internal config that
    * is set by the MR framework and read by it too.
+   * 
+   * yarn.app.mapreduce.am.create-intermediate-jh-base-dir
    */
   public static final String MR_AM_CREATE_JH_INTERMEDIATE_BASE_DIR = 
     MR_AM_PREFIX + "create-intermediate-jh-base-dir";
   
+  //yarn.app.mapreduce.am.history.max-unflushed-events
   public static final String MR_AM_HISTORY_MAX_UNFLUSHED_COMPLETE_EVENTS =
       MR_AM_PREFIX + "history.max-unflushed-events";
   public static final int DEFAULT_MR_AM_HISTORY_MAX_UNFLUSHED_COMPLETE_EVENTS =
       200;
 
+  //yarn.app.mapreduce.am.history.job-complete-unflushed-multiplier
   public static final String MR_AM_HISTORY_JOB_COMPLETE_UNFLUSHED_MULTIPLIER =
       MR_AM_PREFIX + "history.job-complete-unflushed-multiplier";
   public static final int DEFAULT_MR_AM_HISTORY_JOB_COMPLETE_UNFLUSHED_MULTIPLIER =
       30;
 
+  //yarn.app.mapreduce.am.history.complete-event-flush-timeout
   public static final String MR_AM_HISTORY_COMPLETE_EVENT_FLUSH_TIMEOUT_MS =
       MR_AM_PREFIX + "history.complete-event-flush-timeout";
   public static final long DEFAULT_MR_AM_HISTORY_COMPLETE_EVENT_FLUSH_TIMEOUT_MS =
       30 * 1000l;
 
+  //yarn.app.mapreduce.am.history.use-batched-flush.queue-size.threshold
   public static final String MR_AM_HISTORY_USE_BATCHED_FLUSH_QUEUE_SIZE_THRESHOLD =
       MR_AM_PREFIX + "history.use-batched-flush.queue-size.threshold";
   public static final int DEFAULT_MR_AM_HISTORY_USE_BATCHED_FLUSH_QUEUE_SIZE_THRESHOLD =
@@ -606,19 +660,25 @@ public interface MRJobConfig {
    * triggers reducer preemption to free space. Default 0 implies that the reduces
    * should be preempted immediately after allocation if there is currently no
    * room for newly allocated mappers.
+   * 
+   * mapreduce.job.reducer.preempt.delay.sec
    */
   public static final String MR_JOB_REDUCER_PREEMPT_DELAY_SEC =
       "mapreduce.job.reducer.preempt.delay.sec";
   public static final int DEFAULT_MR_JOB_REDUCER_PREEMPT_DELAY_SEC = 0;
 
+  //yarn.app.mapreduce.am.env
   public static final String MR_AM_ENV =
       MR_AM_PREFIX + "env";
   
+  //yarn.app.mapreduce.am.admin.user.env
   public static final String MR_AM_ADMIN_USER_ENV =
       MR_AM_PREFIX + "admin.user.env";
 
+  //yarn.app.mapreduce.am.profile
   public static final String MR_AM_PROFILE = MR_AM_PREFIX + "profile";
   public static final boolean DEFAULT_MR_AM_PROFILE = false;
+  //yarn.app.mapreduce.am.profile.params
   public static final String MR_AM_PROFILE_PARAMS = MR_AM_PREFIX
       + "profile.params";
 

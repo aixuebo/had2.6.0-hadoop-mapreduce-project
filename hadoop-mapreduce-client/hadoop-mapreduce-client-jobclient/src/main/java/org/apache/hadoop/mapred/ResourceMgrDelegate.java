@@ -73,6 +73,9 @@ import org.apache.hadoop.yarn.util.ConverterUtils;
 
 import com.google.common.annotations.VisibleForTesting;
 
+/**
+ * resourceManager的代理类,直接代理到yarn上了
+ */
 public class ResourceMgrDelegate extends YarnClient {
   private static final Log LOG = LogFactory.getLog(ResourceMgrDelegate.class);
       

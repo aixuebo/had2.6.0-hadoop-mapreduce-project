@@ -618,6 +618,12 @@ public class MRApps extends Apps {
    * @param numBackups See {@link RollingFileAppender#setMaxBackupIndex(int)}
    * @param vargs the argument list to append to
    * @param conf configuration of MR job
+   * 追加参数
+   * 1.-Dlog4j.configuration=XXX  log4j的配置文件地址
+   * 2.-Dyarn.app.container.log.dir=<LOG_DIR> 容器的日志目录
+   * 3.-Dyarn.app.container.log.filesize=$logSize 日志大小
+   * 4.-Dyarn.app.container.log.backups=$numBackups
+   * 5.-Dhadoop.root.logger=$logLevel,CRLA
    */
   public static void addLog4jSystemProperties(
       String logLevel, long logSize, int numBackups, List<String> vargs, 

@@ -81,6 +81,7 @@ public class JobSubmissionFiles {
   /**
    * Get the job distributed cache path for log4j properties.
    * @param jobSubmitDir
+   * log4j文件存储路径
    */
   public static Path getJobLog4jFile(Path jobSubmitDir) {
     return new Path(jobSubmitDir, "log4j");

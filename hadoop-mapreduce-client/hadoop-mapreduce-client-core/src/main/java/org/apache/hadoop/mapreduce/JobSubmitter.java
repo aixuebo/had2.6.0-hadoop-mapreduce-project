@@ -87,6 +87,7 @@ class JobSubmitter {
   }
   /*
    * see if two file systems are the same or not.
+   * 必须两个文件系统的scheme,host,port都得相同,才返回true
    */
   private boolean compareFs(FileSystem srcFs, FileSystem destFs) {
     URI srcUri = srcFs.getUri();
@@ -123,6 +124,15 @@ class JobSubmitter {
 
   // copies a file to the jobtracker filesystem and returns the path where it
   // was copied to
+  /**
+   * 将原始文件originalPath对应的文件,copy到jtFs对应的文件系统中
+   * @param parentDir 将originalPath文件copy到本地哪个目录下
+   * @param originalPath 原始文件,等待被拷贝
+   * @param conf
+   * @param replication copy多少份
+   * @return 返回jtFs对应的文件系统上的path
+   * @throws IOException
+   */
   private Path copyRemoteFiles(Path parentDir,
       Path originalPath, Configuration conf, short replication) 
       throws IOException {
@@ -132,14 +142,16 @@ class JobSubmitter {
     // to see if the filesystems are the same. This is not optimal.
     // but avoids name resolution.
     
+	//原始文件的操作系统
     FileSystem remoteFs = null;
     remoteFs = originalPath.getFileSystem(conf);
-    if (compareFs(remoteFs, jtFs)) {
+    if (compareFs(remoteFs, jtFs)) {//说明在相同的操作机器下,因此不用copy
       return originalPath;
     }
     // this might have name collisions. copy will throw an exception
     //parse the original path to create new path
     Path newPath = new Path(parentDir, originalPath.getName());
+    //真正的copy
     FileUtil.copy(remoteFs, originalPath, jtFs, newPath, false, conf);
     jtFs.setReplication(newPath, replication);
     return newPath;
@@ -159,7 +171,7 @@ class JobSubmitter {
     String files = conf.get("tmpfiles");
     String libjars = conf.get("tmpjars");
     String archives = conf.get("tmparchives");
-    String jobJar = job.getJar();
+    String jobJar = job.getJar();//jar包
 
     //
     // Figure out what fs the JobTracker is using.  Copy the
@@ -180,13 +192,13 @@ class JobSubmitter {
     submitJobDir = new Path(submitJobDir.toUri().getPath());
     FsPermission mapredSysPerms = new FsPermission(JobSubmissionFiles.JOB_DIR_PERMISSION);
     FileSystem.mkdirs(jtFs, submitJobDir, mapredSysPerms);
-    Path filesDir = JobSubmissionFiles.getJobDistCacheFiles(submitJobDir);
-    Path archivesDir = JobSubmissionFiles.getJobDistCacheArchives(submitJobDir);
-    Path libjarsDir = JobSubmissionFiles.getJobDistCacheLibjars(submitJobDir);
+    Path filesDir = JobSubmissionFiles.getJobDistCacheFiles(submitJobDir);//$submitJobDir/files
+    Path archivesDir = JobSubmissionFiles.getJobDistCacheArchives(submitJobDir);//$submitJobDir/archives
+    Path libjarsDir = JobSubmissionFiles.getJobDistCacheLibjars(submitJobDir);//$submitJobDir/libjars
     // add all the command line files/ jars and archive
     // first copy them to jobtrackers filesystem 
       
-    if (files != null) {
+    if (files != null) {//远程的文件或者本地文件添加到files目录中
       FileSystem.mkdirs(jtFs, filesDir, mapredSysPerms);
       String[] fileArr = files.split(",");
       for (String tmpFile: fileArr) {
@@ -208,7 +220,7 @@ class JobSubmitter {
       }
     }
       
-    if (libjars != null) {
+    if (libjars != null) {//远程的文件或者本地文件添加到libjars目录中
       FileSystem.mkdirs(jtFs, libjarsDir, mapredSysPerms);
       String[] libjarsArr = libjars.split(",");
       for (String tmpjars: libjarsArr) {
@@ -219,7 +231,7 @@ class JobSubmitter {
       }
     }
       
-    if (archives != null) {
+    if (archives != null) {//远程的文件或者本地文件添加到archives目录中
       FileSystem.mkdirs(jtFs, archivesDir, mapredSysPerms); 
       String[] archivesArr = archives.split(",");
       for (String tmpArchives: archivesArr) {
@@ -253,6 +265,7 @@ class JobSubmitter {
       // we don't need to copy it from local fs
       if (     jobJarURI.getScheme() == null
             || jobJarURI.getScheme().equals("file")) {
+    	//copy jar包,并且改名字为job.jar
         copyJar(jobJarPath, JobSubmissionFiles.getJobJar(submitJobDir), 
             replication);
         job.setJar(JobSubmissionFiles.getJobJar(submitJobDir).toString());
@@ -262,6 +275,7 @@ class JobSubmitter {
       "See Job or Job#setJar(String).");
     }
     
+    //将log4j文件追加到目录中
     addLog4jToDistributedCache(job, submitJobDir);
     
     //  set the timestamps of the archives and files
@@ -275,6 +289,7 @@ class JobSubmitter {
   // copy user specified log4j.property file in local 
   // to HDFS with putting on distributed cache and adding its parent directory 
   // to classpath.
+  //将log4j文件追加到目录中
   @SuppressWarnings("deprecation")
   private void copyLog4jPropertyFile(Job job, Path submitJobDir,
       short replication) throws IOException {
@@ -432,6 +447,7 @@ class JobSubmitter {
     checkSpecs(job);
 
     Configuration conf = job.getConfiguration();
+    //添加一个框架,比如使用的不是yarn,而是自定义的,需要被追加进去
     addMRFrameworkToDistributedCache(conf);
 
     Path jobStagingArea = JobSubmissionFiles.getStagingDir(cluster, conf);
@@ -446,7 +462,7 @@ class JobSubmitter {
     JobID jobId = submitClient.getNewJobID();
     job.setJobID(jobId);
     //该job提交的各种文件和jar存储的根目录
-    Path submitJobDir = new Path(jobStagingArea, jobId.toString());
+    Path submitJobDir = new Path(jobStagingArea, jobId.toString());//本地目录,用于在其他节点存储该job的目录
     JobStatus status = null;
     try {
       conf.set(MRJobConfig.USER_NAME,
@@ -485,13 +501,13 @@ class JobSubmitter {
       
       
 
-      
+      //获取job.xml文件位置
       Path submitJobFile = JobSubmissionFiles.getJobConfPath(submitJobDir);
       
       // Create the splits for the job
       LOG.debug("Creating splits at " + jtFs.makeQualified(submitJobDir));
       int maps = writeSplits(job, submitJobDir);
-      conf.setInt(MRJobConfig.NUM_MAPS, maps);
+      conf.setInt(MRJobConfig.NUM_MAPS, maps);//设置多少个Map任务
       LOG.info("number of splits:" + maps);
 
       // write "queue admins of the queue to which job is being submitted"
@@ -566,6 +582,7 @@ class JobSubmitter {
     }
   }
   
+  //将conf对象存储成.xml文件
   private void writeConf(Configuration conf, Path jobFile) 
       throws IOException {
     // Write job file to JobTracker's fs        
@@ -587,6 +604,9 @@ class JobSubmitter {
     }
   }
 
+  /**
+   * 根据输入源的文件类型,返回有多少个数据拆分块
+   */
   @SuppressWarnings("unchecked")
   private <T extends InputSplit>
   int writeNewSplits(JobContext job, Path jobSubmitDir) throws IOException,
@@ -595,6 +615,7 @@ class JobSubmitter {
     InputFormat<?, ?> input =
       ReflectionUtils.newInstance(job.getInputFormatClass(), conf);
 
+    //根据输入源的文件类型,返回有多少个数据拆分块
     List<InputSplit> splits = input.getSplits(job);
     T[] array = (T[]) splits.toArray(new InputSplit[splits.size()]);
 
@@ -611,6 +632,7 @@ class JobSubmitter {
       InterruptedException, ClassNotFoundException {
     JobConf jConf = (JobConf)job.getConfiguration();
     int maps;
+    //返回Map阶段多少个数据块
     if (jConf.getUseNewMapper()) {
       maps = writeNewSplits(job, jobSubmitDir);
     } else {
@@ -619,6 +641,9 @@ class JobSubmitter {
     return maps;
   }
   
+  /**
+   * 根据输入源的文件类型,返回有多少个数据拆分块
+   */
   //method to write splits for old api mapper.
   private int writeOldSplits(JobConf job, Path jobSubmitDir) 
   throws IOException {
@@ -727,6 +752,9 @@ class JobSubmitter {
     }
   }
 
+  /**
+   * 添加一个框架,比如使用的不是yarn,而是自定义的,需要被追加进去
+   */
   @SuppressWarnings("deprecation")
   private static void addMRFrameworkToDistributedCache(Configuration conf)
       throws IOException {
@@ -764,6 +792,7 @@ class JobSubmitter {
     }
   }
   
+  //将log4j文件追加到目录中
   private void addLog4jToDistributedCache(Job job,
       Path jobSubmitDir) throws IOException {
     Configuration conf = job.getConfiguration();

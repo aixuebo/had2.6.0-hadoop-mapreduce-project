@@ -98,7 +98,7 @@ public class YARNRunner implements ClientProtocol {
   private static final Log LOG = LogFactory.getLog(YARNRunner.class);
 
   private final RecordFactory recordFactory = RecordFactoryProvider.getRecordFactory(null);
-  private ResourceMgrDelegate resMgrDelegate;
+  private ResourceMgrDelegate resMgrDelegate;//yarn的代理客户端
   private ClientCache clientCache;
   private Configuration conf;
   private final FileContext defaultFileContext;
@@ -343,6 +343,7 @@ public class YARNRunner implements ClientProtocol {
     Map<String, LocalResource> localResources =
         new HashMap<String, LocalResource>();
 
+    //job.xml
     Path jobConfPath = new Path(jobSubmitDir, MRJobConfig.JOB_CONF_FILE);
 
     URL yarnUrlForJobSubmitDir = ConverterUtils
@@ -387,8 +388,9 @@ public class YARNRunner implements ClientProtocol {
     ts.writeTokenStorageToStream(dob);
     ByteBuffer securityTokens  = ByteBuffer.wrap(dob.getData(), 0, dob.getLength());
 
-    // Setup the command to run the AM
+    // Setup the command to run the AM 设置AM的启动命令
     List<String> vargs = new ArrayList<String>(8);
+    //追加参数 $JAVA_HOME/bin/java
     vargs.add(MRApps.crossPlatformifyMREnv(jobConf, Environment.JAVA_HOME)
         + "/bin/java");
 
@@ -399,6 +401,15 @@ public class YARNRunner implements ClientProtocol {
         MRJobConfig.MR_AM_LOG_LEVEL, MRJobConfig.DEFAULT_MR_AM_LOG_LEVEL);
     int numBackups = jobConf.getInt(MRJobConfig.MR_AM_LOG_BACKUPS,
         MRJobConfig.DEFAULT_MR_AM_LOG_BACKUPS);
+    
+    /**
+   * 追加参数
+   * 1.-Dlog4j.configuration=XXX  log4j的配置文件地址
+   * 2.-Dyarn.app.container.log.dir=<LOG_DIR> 容器的日志目录
+   * 3.-Dyarn.app.container.log.filesize=$logSize 日志大小
+   * 4.-Dyarn.app.container.log.backups=$numBackups
+   * 5.-Dhadoop.root.logger=$logLevel,CRLA
+     */
     MRApps.addLog4jSystemProperties(logLevel, logSize, numBackups, vargs, conf);
 
     // Check for Java Lib Path usage in MAP and REDUCE configs
@@ -413,6 +424,7 @@ public class YARNRunner implements ClientProtocol {
 
     // Add AM admin command opts before user command opts
     // so that it can be overridden by user
+    //追加管理员自定义命令
     String mrAppMasterAdminOptions = conf.get(MRJobConfig.MR_AM_ADMIN_COMMAND_OPTS,
         MRJobConfig.DEFAULT_MR_AM_ADMIN_COMMAND_OPTS);
     warnForJavaLibPath(mrAppMasterAdminOptions, "app master", 
@@ -420,12 +432,14 @@ public class YARNRunner implements ClientProtocol {
     vargs.add(mrAppMasterAdminOptions);
     
     // Add AM user command opts
+    //追加-Xmx1024m
     String mrAppMasterUserOptions = conf.get(MRJobConfig.MR_AM_COMMAND_OPTS,
         MRJobConfig.DEFAULT_MR_AM_COMMAND_OPTS);
     warnForJavaLibPath(mrAppMasterUserOptions, "app master", 
         MRJobConfig.MR_AM_COMMAND_OPTS, MRJobConfig.MR_AM_ENV);
     vargs.add(mrAppMasterUserOptions);
 
+    //追加profile性能日志,属于JDK的参数,因此也在执行的class之前设置
     if (jobConf.getBoolean(MRJobConfig.MR_AM_PROFILE,
         MRJobConfig.DEFAULT_MR_AM_PROFILE)) {
       final String profileParams = jobConf.get(MRJobConfig.MR_AM_PROFILE_PARAMS,
@@ -437,19 +451,25 @@ public class YARNRunner implements ClientProtocol {
       }
     }
 
+    //追加启动类org.apache.hadoop.mapreduce.v2.app.MRAppMaster
     vargs.add(MRJobConfig.APPLICATION_MASTER_CLASS);
+    //追加错误日志定向输出
+    //1><LOG_DIR>/stdout
+    //2><LOG_DIR>/stderr
     vargs.add("1>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR +
         Path.SEPARATOR + ApplicationConstants.STDOUT);
     vargs.add("2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR +
         Path.SEPARATOR + ApplicationConstants.STDERR);
 
 
+    //最终命令参数
     Vector<String> vargsFinal = new Vector<String>(8);
     // Final command
     StringBuilder mergedCommand = new StringBuilder();
     for (CharSequence str : vargs) {
       mergedCommand.append(str).append(" ");
     }
+    //添加全部的启动参数
     vargsFinal.add(mergedCommand.toString());
 
     LOG.debug("Command to launch container for ApplicationMaster is : "
@@ -460,7 +480,7 @@ public class YARNRunner implements ClientProtocol {
     Map<String, String> environment = new HashMap<String, String>();
     MRApps.setClasspath(environment, conf);
 
-    // Shell
+    // Shell--> /bin/bash
     environment.put(Environment.SHELL.name(),
         conf.get(MRJobConfig.MAPRED_ADMIN_USER_SHELL,
             MRJobConfig.DEFAULT_SHELL));

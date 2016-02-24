@@ -92,7 +92,7 @@ public class JobSplitWriter {
     out.close();
     
     /**
-     *  向job.splitmetainfo文件写入信息
+     *  向job.splitmetainfo文件写入信息,主要是有多少个SplitMetaInfo[]
      */
     writeJobSplitMetaInfo(fs,JobSubmissionFiles.getJobSplitMetaFile(jobSubmitDir), 
         new FsPermission(JobSubmissionFiles.JOB_FILE_PERMISSION), splitVersion,
