@@ -229,6 +229,7 @@ public interface ClientProtocol extends VersionedProtocol {
    * @param maxEvents the max number of events we want to look at 
    * @return array of task completion events. 
    * @throws IOException
+   * 抓取该job完成的task,fromEventId表示从第几个task开始抓取,maxEvents表示最多抓取多少个完成的task
    */
   public TaskCompletionEvent[] getTaskCompletionEvents(JobID jobid,
     int fromEventId, int maxEvents) throws IOException, InterruptedException;
@@ -237,6 +238,7 @@ public interface ClientProtocol extends VersionedProtocol {
    * Get the diagnostics for a given task in a given job
    * @param taskId the id of the task
    * @return an array of the diagnostic messages
+   * 给定taskId,获取该任务的信息
    */
   public String[] getTaskDiagnostics(TaskAttemptID taskId) 
   throws IOException, InterruptedException;

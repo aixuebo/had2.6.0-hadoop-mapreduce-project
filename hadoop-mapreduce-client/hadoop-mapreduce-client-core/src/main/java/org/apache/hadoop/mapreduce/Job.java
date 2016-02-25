@@ -1359,6 +1359,7 @@ public class Job extends JobContextImpl implements JobContext {
     if (verbose) {	//监听job,并且时刻打印job信息
       monitorAndPrintJob();
     } else {
+    	//不打印信息,只是不断的sleep,直到完成结束
       // get the completion poll interval from the client.
       int completionPollIntervalMillis = 
         Job.getCompletionPollInterval(cluster.getConf());
@@ -1397,10 +1398,10 @@ public class Job extends JobContextImpl implements JobContext {
     int progMonitorPollIntervalMillis = 
       Job.getProgressPollInterval(clientConf);
     /* make sure to report full progress after the job is done */
-    boolean reportedAfterCompletion = false;
+    boolean reportedAfterCompletion = false;//true表示报道之后,就完成了该job
     boolean reportedUberMode = false;
     while (!isComplete() || !reportedAfterCompletion) {//每隔一段时间进行打印一次信息
-      if (isComplete()) {
+      if (isComplete()) {//完成
         reportedAfterCompletion = true;
       } else {
         Thread.sleep(progMonitorPollIntervalMillis);
@@ -1411,7 +1412,9 @@ public class Job extends JobContextImpl implements JobContext {
       if (!reportedUberMode) {//打印一次,目的是打印日志是否是uber mode
         reportedUberMode = true;
         LOG.info("Job " + jobId + " running in uber mode : " + isUber());
-      }      
+      }     
+      
+      //打印进度
       String report = 
         (" map " + StringUtils.formatPercent(mapProgress(), 0)+
             " reduce " + 
@@ -1423,6 +1426,7 @@ public class Job extends JobContextImpl implements JobContext {
       }
 
       //抓取完成的task任务,并且打印信息
+      //获取从startFrom开始,最多抓取numEvents个完成的task回来
       TaskCompletionEvent[] events = 
         getTaskCompletionEvents(eventCounter, 10); 
       eventCounter += events.length;
@@ -1498,8 +1502,10 @@ public class Job extends JobContextImpl implements JobContext {
   private void printTaskEvents(TaskCompletionEvent[] events,
       Job.TaskStatusFilter filter, boolean profiling, IntegerRanges mapRanges,
       IntegerRanges reduceRanges) throws IOException, InterruptedException {
+	  
+	  //循环每一个完成的任务task
     for (TaskCompletionEvent event : events) {
-      switch (filter) {
+      switch (filter) {//查找满足task的类型的任务
       case NONE:
         break;
       case SUCCEEDED://成功的task被打印
