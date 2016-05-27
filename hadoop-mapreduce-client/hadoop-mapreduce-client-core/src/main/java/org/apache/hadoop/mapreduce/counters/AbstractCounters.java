@@ -168,7 +168,7 @@ public abstract class AbstractCounters<C extends Counter,
       /**
        * key.getDeclaringClass().getName()的值为类名$内部类名
        * 例如:
-       * com.coohua.statistics.Test$GroupType
+       * com.xuebo.statistics.Test$GroupType
        * 
        * key.name()为枚举的名称属性
        */
