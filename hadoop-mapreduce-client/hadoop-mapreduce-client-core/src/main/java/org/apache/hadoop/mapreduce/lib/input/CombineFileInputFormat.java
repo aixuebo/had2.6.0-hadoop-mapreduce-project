@@ -215,31 +215,35 @@ public abstract class CombineFileInputFormat<K, V>
 
     // all the files in input set
     List<FileStatus> stats = listStatus(job);
+    
+    //最终拆分好后的组
     List<InputSplit> splits = new ArrayList<InputSplit>();
     if (stats.size() == 0) {
       return splits;    
     }
 
+    //循环所有的stats文件,找到第一个匹配规则匹配的元素
     // In one single iteration, process all the paths in a single pool.
     // Processing one pool at a time ensures that a split contains paths
     // from a single pool only.
-    for (MultiPathFilter onepool : pools) {
+    for (MultiPathFilter onepool : pools) {//循环所有的匹配规则
+    	//该匹配规则匹配的元素
       ArrayList<FileStatus> myPaths = new ArrayList<FileStatus>();
       
       // pick one input path. If it matches all the filters in a pool,
       // add it to the output set
       for (Iterator<FileStatus> iter = stats.iterator(); iter.hasNext();) {
         FileStatus p = iter.next();
-        if (onepool.accept(p.getPath())) {
-          myPaths.add(p); // add it to my output set
-          iter.remove();
+        if (onepool.accept(p.getPath())) {//说明该文件符合该匹配规则
+          myPaths.add(p); // add it to my output set  加入到输出文件中
+          iter.remove();//该文件以及匹配完成,移除
         }
       }
-      // create splits for all files in this pool.
+      // create splits for all files in this pool.在这个池子中,匹配的文件进行split合并拆分
       getMoreSplits(job, myPaths, maxSize, minSizeNode, minSizeRack, splits);
     }
 
-    // create splits for all files that are not in any pool.
+    // create splits for all files that are not in any pool.对不在任何匹配规则池里面的文件进行合并拆分
     getMoreSplits(job, stats, maxSize, minSizeNode, minSizeRack, splits);
 
     // free up rackToNodes map
@@ -256,7 +260,7 @@ public abstract class CombineFileInputFormat<K, V>
     throws IOException {
     Configuration conf = job.getConfiguration();
 
-    // all blocks for all the files in input set
+    // all blocks for all the files in input set 每一个文件对应一个该对象
     OneFileInfo[] files;
   
     // mapping from a rack name to the list of blocks it has
@@ -277,8 +281,10 @@ public abstract class CombineFileInputFormat<K, V>
     }
 
     // populate all the blocks for all files
-    long totLength = 0;
+    long totLength = 0;//所有文件的总字节长度
     int i = 0;
+    
+    //计算所有字节的长度
     for (FileStatus stat : stats) {
       files[i] = new OneFileInfo(stat, conf, isSplitable(job, stat.getPath()),
                                  rackToBlocks, blockToNodes, nodeToBlocks,
@@ -550,11 +556,12 @@ public abstract class CombineFileInputFormat<K, V>
 
   /**
    * information about one file from the File System
+   * 代表一个HDFS上的path路径对应的文件--该文件包含多个数据块
    */
   @VisibleForTesting
   static class OneFileInfo {
-    private long fileSize;               // size of the file
-    private OneBlockInfo[] blocks;       // all blocks in this file
+    private long fileSize;               // size of the file该文件所有的数据块总大小
+    private OneBlockInfo[] blocks;       // all blocks in this file 该文件对应的所有数据块集合,每一个对象代表一个数据块
 
     OneFileInfo(FileStatus stat, Configuration conf,
                 boolean isSplitable,
@@ -567,30 +574,32 @@ public abstract class CombineFileInputFormat<K, V>
       this.fileSize = 0;
 
       // get block locations from file system
-      BlockLocation[] locations;
+      BlockLocation[] locations;//属于该文件的所有数据块集合
       if (stat instanceof LocatedFileStatus) {
         locations = ((LocatedFileStatus) stat).getBlockLocations();
       } else {
+    	  //获取该文件所有的数据块集合
         FileSystem fs = stat.getPath().getFileSystem(conf);
         locations = fs.getFileBlockLocations(stat, 0, stat.getLen());
       }
       // create a list of all block and their locations
-      if (locations == null) {
-        blocks = new OneBlockInfo[0];
+      if (locations == null) {//该文件没有数据块
+        blocks = new OneBlockInfo[0];//数组长度为0
       } else {
 
         if(locations.length == 0 && !stat.isDirectory()) {
           locations = new BlockLocation[] { new BlockLocation() };
         }
 
-        if (!isSplitable) {
+        if (!isSplitable) {//不可拆分的数据块
           // if the file is not splitable, just create the one block with
-          // full file length
-          blocks = new OneBlockInfo[1];
-          fileSize = stat.getLen();
+          // full file length 说明一个数据块对应全部文件内容
+          blocks = new OneBlockInfo[1];//数组长度为1
+          fileSize = stat.getLen();//文件大小
           blocks[0] = new OneBlockInfo(stat.getPath(), 0, fileSize,
               locations[0].getHosts(), locations[0].getTopologyPaths());
         } else {
+        	//数据块集合
           ArrayList<OneBlockInfo> blocksList = new ArrayList<OneBlockInfo>(
               locations.length);
           for (int i = 0; i < locations.length; i++) {
