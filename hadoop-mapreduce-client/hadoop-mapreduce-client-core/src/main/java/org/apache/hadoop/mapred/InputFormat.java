@@ -81,6 +81,7 @@ public interface InputFormat<K, V> {
    * @param job job configuration.
    * @param numSplits the desired number of splits, a hint.
    * @return an array of {@link InputSplit}s for the job.
+   * 将job输入源拆分成多少个数据快
    */
   InputSplit[] getSplits(JobConf job, int numSplits) throws IOException;
 
@@ -94,6 +95,7 @@ public interface InputFormat<K, V> {
    * @param split the {@link InputSplit}
    * @param job the job that this split belongs to
    * @return a {@link RecordReader}
+   * 只是单独读取一个数据快
    */
   RecordReader<K, V> getRecordReader(InputSplit split,
                                      JobConf job, 

@@ -98,6 +98,7 @@ public abstract class CombineFileInputFormat<K, V>
 
   // A pool of input paths filters. A split cannot have blocks from files
   // across multiple pools.
+  //一个输入源文件路径的过滤集合,
   private ArrayList<MultiPathFilter> pools = new  ArrayList<MultiPathFilter>();
 
   // mapping from a rack name to the set of Nodes in the rack 
@@ -193,7 +194,7 @@ public abstract class CombineFileInputFormat<K, V>
     if (maxSplitSize != 0) {
       maxSize = maxSplitSize;
     } else {
-      maxSize = conf.getLong("mapreduce.input.fileinputformat.split.maxsize", 0);
+      maxSize = conf.getLong("mapreduce.input.fileinputformat.split.maxsize", 0);//文件拆分的最大值
       // If maxSize is not configured, a single split will be generated per
       // node.
     }
@@ -213,7 +214,7 @@ public abstract class CombineFileInputFormat<K, V>
                             "size per rack " + minSizeRack);
     }
 
-    // all the files in input set
+    // all the files in input set 获取输入源对应的文件集合
     List<FileStatus> stats = listStatus(job);
     
     //最终拆分好后的组
@@ -275,6 +276,7 @@ public abstract class CombineFileInputFormat<K, V>
     HashMap<String, Set<OneBlockInfo>> nodeToBlocks = 
                               new HashMap<String, Set<OneBlockInfo>>();
     
+    //代表一个HDFS上的path路径对应的文件--该文件包含多个数据块
     files = new OneFileInfo[stats.size()];
     if (stats.size() == 0) {
       return; 

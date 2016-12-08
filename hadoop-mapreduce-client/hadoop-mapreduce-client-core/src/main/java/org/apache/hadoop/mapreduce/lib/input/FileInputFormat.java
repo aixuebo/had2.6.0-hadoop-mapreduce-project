@@ -97,7 +97,7 @@ public abstract class FileInputFormat<K, V> extends InputFormat<K, V> {
    * Proxy PathFilter that accepts a path only if all filters given in the
    * constructor do. Used by the listPaths() to apply the built-in
    * hiddenFileFilter together with a user provided one (if any).
-   * 存储多个文件过滤器
+   * 存储多个文件过滤器,有一个不通过,则结果都是false
    */
   private static class MultiPathFilter implements PathFilter {
     private List<PathFilter> filters;
@@ -261,7 +261,7 @@ public abstract class FileInputFormat<K, V> extends InputFormat<K, V> {
     }
     PathFilter inputFilter = new MultiPathFilter(filters);
     
-    //最终要处理的文件集合
+    //最终要处理的文件集合,而不是数据块集合
     List<FileStatus> result = null;
 
     //读取文件集合的线程数
@@ -269,8 +269,8 @@ public abstract class FileInputFormat<K, V> extends InputFormat<K, V> {
     Stopwatch sw = new Stopwatch().start();//统计执行时间
     //开始通过过滤条件和输入路径,获取最终要处理的文件集合
     if (numThreads == 1) {
-      result = singleThreadedListStatus(job, dirs, inputFilter, recursive);
-    } else {
+      result = singleThreadedListStatus(job, dirs, inputFilter, recursive);//返回的是需要的所有文件,而不是数据块集合
+    } else {//多线程
       Iterable<FileStatus> locatedFiles = null;
       try {
         LocatedFileStatusFetcher locatedFileStatusFetcher = new LocatedFileStatusFetcher(job.getConfiguration(), dirs, recursive, inputFilter, true);
@@ -294,9 +294,10 @@ public abstract class FileInputFormat<K, V> extends InputFormat<K, V> {
    * @param job
    * @param dirs 输入路径集合
    * @param inputFilter 对路径进行过滤的条件对象
-   * @param recursive是否递归目录
+   * @param recursive 是否递归目录
    * @return 
    * @throws IOException
+   * 返回的是需要的所有文件,而不是数据块集合
    */
   private List<FileStatus> singleThreadedListStatus(JobContext job, Path[] dirs,
       PathFilter inputFilter, boolean recursive) throws IOException {
@@ -312,15 +313,16 @@ public abstract class FileInputFormat<K, V> extends InputFormat<K, V> {
         errors.add(new IOException("Input Pattern " + p + " matches 0 files"));
       } else {
         for (FileStatus globStat: matches) {
-          if (globStat.isDirectory()) {
+          if (globStat.isDirectory()) {//是目录
+            //加载一个目录,如果目录的子目录优势目录,则返回null,如果是文件,则创建该文件的属性与数据块集合的对象LocatedFileStatus
             RemoteIterator<LocatedFileStatus> iter = fs.listLocatedStatus(globStat.getPath());
-            while (iter.hasNext()) {
+            while (iter.hasNext()) {//依次迭代该目录下每一个子文件
               LocatedFileStatus stat = iter.next();
-              if (inputFilter.accept(stat.getPath())) {
-                if (recursive && stat.isDirectory()) {
+              if (inputFilter.accept(stat.getPath())) {//可以接受该文件
+                if (recursive && stat.isDirectory()) {//如果又是目录,则递归
                   addInputPathRecursively(result, fs, stat.getPath(),inputFilter);
                 } else {
-                  result.add(stat);
+                  result.add(stat);//添加该文件
                 }
               }
             }
@@ -348,6 +350,7 @@ public abstract class FileInputFormat<K, V> extends InputFormat<K, V> {
    * @param inputFilter
    *          The input filter that can be used to filter files/dirs. 
    * @throws IOException
+   * 递归抓取path下符合的文件,将其添加到result结果集中
    */
   protected void addInputPathRecursively(List<FileStatus> result,
       FileSystem fs, Path path, PathFilter inputFilter) 
@@ -447,6 +450,15 @@ public abstract class FileInputFormat<K, V> extends InputFormat<K, V> {
     return splits;
   }
 
+  /**
+   * 正常 blockSize 数据块大小都是在minSize与maxSize之间,因此拆分后就是数据块本身大小为一块
+   * 如果blockSize<minSize,那么也会获取minSize个大小,即一个map读取多个数据块
+   * 如果blockSize>maxSize,则最多也会读取maxSize个字节,即一个map读取少于一个数据块内容,即一个数据块被多个map处理
+   * @param blockSize
+   * @param minSize
+   * @param maxSize
+   * @return
+   */
   protected long computeSplitSize(long blockSize, long minSize,
                                   long maxSize) {
     return Math.max(minSize, Math.min(maxSize, blockSize));

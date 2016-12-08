@@ -80,9 +80,9 @@ public class LocatedFileStatusFetcher {
 
   /**
    * @param conf configuration for the job
-   * @param dirs the initial list of paths
-   * @param recursive whether to traverse the patchs recursively
-   * @param inputFilter inputFilter to apply to the resulting paths
+   * @param dirs the initial list of paths 数据源的路径集合
+   * @param recursive whether to traverse the patchs recursively 是否递归读取目录下文件
+   * @param inputFilter inputFilter to apply to the resulting paths 筛选路径path的条件
    * @param newApi whether using the mapred or mapreduce API
    * @throws InterruptedException
    * @throws IOException
@@ -241,8 +241,8 @@ public class LocatedFileStatusFetcher {
     }
 
     private static class Result {
-      private List<FileStatus> locatedFileStatuses = new LinkedList<FileStatus>();
-      private List<FileStatus> dirsNeedingRecursiveCalls = new LinkedList<FileStatus>();
+      private List<FileStatus> locatedFileStatuses = new LinkedList<FileStatus>();//收集到的文件路径集合
+      private List<FileStatus> dirsNeedingRecursiveCalls = new LinkedList<FileStatus>();//要继续深度遍历的目录集合
       private FileSystem fs;
     }
   }

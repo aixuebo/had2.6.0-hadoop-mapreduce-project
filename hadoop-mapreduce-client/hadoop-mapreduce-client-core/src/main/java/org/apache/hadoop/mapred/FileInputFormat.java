@@ -96,6 +96,7 @@ public abstract class FileInputFormat<K, V> implements InputFormat<K, V> {
    * Proxy PathFilter that accepts a path only if all filters given in the
    * constructor do. Used by the listPaths() to apply the built-in
    * hiddenFileFilter together with a user provided one (if any).
+   * 一组过滤条件,只要有一个是不通过,结果就是不通过
    */
   private static class MultiPathFilter implements PathFilter {
     private List<PathFilter> filters;
@@ -106,7 +107,7 @@ public abstract class FileInputFormat<K, V> implements InputFormat<K, V> {
 
     public boolean accept(Path path) {
       for (PathFilter filter : filters) {
-        if (!filter.accept(path)) {
+        if (!filter.accept(path)) {//只要有一个是不通过,结果就是不通过
           return false;
         }
       }

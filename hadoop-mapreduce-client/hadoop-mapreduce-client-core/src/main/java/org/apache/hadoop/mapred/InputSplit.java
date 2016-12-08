@@ -34,6 +34,7 @@ import org.apache.hadoop.io.Writable;
  * 
  * @see InputFormat
  * @see RecordReader
+ * 代表一个Map可以独立运行的数据块单元
  */
 @InterfaceAudience.Public
 @InterfaceStability.Stable
@@ -44,6 +45,7 @@ public interface InputSplit extends Writable {
    * 
    * @return the number of bytes in the input split.
    * @throws IOException
+   * 包含长度
    */
   long getLength() throws IOException;
   
@@ -53,6 +55,7 @@ public interface InputSplit extends Writable {
    * @return list of hostnames where data of the <code>InputSplit</code> is
    *         located as an array of <code>String</code>s.
    * @throws IOException
+   * 在那些节点上有备份
    */
   String[] getLocations() throws IOException;
 }

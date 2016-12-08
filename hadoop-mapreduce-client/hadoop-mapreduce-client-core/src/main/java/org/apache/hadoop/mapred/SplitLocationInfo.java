@@ -21,6 +21,7 @@ package org.apache.hadoop.mapred;
 import org.apache.hadoop.classification.InterfaceAudience.Public;
 import org.apache.hadoop.classification.InterfaceStability.Evolving;
 
+//详细参见org.apache.hadoop.mapreduce.lib.input.FileSplit
 @Public
 @Evolving
 public class SplitLocationInfo {

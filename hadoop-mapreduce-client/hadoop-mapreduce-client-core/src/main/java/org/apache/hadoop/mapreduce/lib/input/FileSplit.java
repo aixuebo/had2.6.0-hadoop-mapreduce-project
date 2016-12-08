@@ -35,15 +35,17 @@ import org.apache.hadoop.io.Writable;
 
 /** A section of an input file.  Returned by {@link
  * InputFormat#getSplits(JobContext)} and passed to
- * {@link InputFormat#createRecordReader(InputSplit,TaskAttemptContext)}. */
+ * {@link InputFormat#createRecordReader(InputSplit,TaskAttemptContext)}.
+ * 代表一个map要读取的内容
+ **/
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public class FileSplit extends InputSplit implements Writable {
   private Path file;
   private long start;
-  private long length;
+  private long length;//可能该数据块所在节点不能容纳length字节数据,即需要跨数据块读取了,是有这种可能的,而host只是只带一个数据块节点
   private String[] hosts;
-  private SplitLocationInfo[] hostInfos;
+  private SplitLocationInfo[] hostInfos;//就是host,一个数据块所在的备份节点,只是其中包含了一个inMemory对象,表示true则说明该节点上的信息存储在内存中了,会更加快被访问
 
   public FileSplit() {}
 
@@ -63,11 +65,12 @@ public class FileSplit extends InputSplit implements Writable {
   
   /** Constructs a split with host and cached-blocks information
   *
-  * @param file the file name
-  * @param start the position of the first byte in the file to process
-  * @param length the number of bytes in the file to process
-  * @param hosts the list of hosts containing the block
-  * @param inMemoryHosts the list of hosts containing the block in memory
+  * @param file the file name 读取哪个file路径的文件
+  * @param start the position of the first byte in the file to process 从第几个字节开始读取
+  * @param length the number of bytes in the file to process 读取多少字节
+  * @param hosts the list of hosts containing the block 该数据块在哪个节点上
+  * @param inMemoryHosts the list of hosts containing the block in memory 内存中包含该数据块的信息地址
+   * 代表一个map要读取的内容
   */
  public FileSplit(Path file, long start, long length, String[] hosts,
      String[] inMemoryHosts) {
@@ -75,7 +78,7 @@ public class FileSplit extends InputSplit implements Writable {
    hostInfos = new SplitLocationInfo[hosts.length];
    for (int i = 0; i < hosts.length; i++) {
      // because N will be tiny, scanning is probably faster than a HashSet
-     boolean inMemory = false;
+     boolean inMemory = false;//host节点上,内存也有该信息
      for (String inMemoryHost : inMemoryHosts) {
        if (inMemoryHost.equals(hosts[i])) {
          inMemory = true;
