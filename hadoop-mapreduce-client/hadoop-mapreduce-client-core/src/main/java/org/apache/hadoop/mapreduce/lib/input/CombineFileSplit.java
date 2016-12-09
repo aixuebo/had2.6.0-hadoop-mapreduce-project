@@ -41,17 +41,18 @@ import org.apache.hadoop.mapreduce.RecordReader;
  * with reading one record per file.
  * 
  * @see FileSplit
- * @see CombineFileInputFormat 
+ * @see CombineFileInputFormat
+ * 一个Map处理的数据块集合
  */
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public class CombineFileSplit extends InputSplit implements Writable {
 
-  private Path[] paths;
-  private long[] startoffset;
-  private long[] lengths;
+  private Path[] paths;//每一个要处理的文件路径集合
+  private long[] startoffset;//每一个文件对应的开始字节位置
+  private long[] lengths;//每一个文件要读取多少个字节
   private String[] locations;
-  private long totLength;
+  private long totLength;//读取所有文件的总字节数
 
   /**
    * default constructor

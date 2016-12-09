@@ -56,10 +56,20 @@ public class CombineTextInputFormat
    * @see CombineFileRecordReader
    * @see CombineFileInputFormat
    * @see TextInputFormat
+   * 因为一个数据块包含多个文件以及多个数据块,因此每一个数据块如何读取呢,就用TextInputFormat去读取该数据块
    */
   private static class TextRecordReaderWrapper
     extends CombineFileRecordReaderWrapper<LongWritable,Text> {
     // this constructor signature is required by CombineFileRecordReader
+
+    /**
+     *
+     * @param split 整个分片文件
+     * @param conf
+     * @param reporter
+     * @param idx 该分片中的第几个文件
+       * @throws IOException
+       */
     public TextRecordReaderWrapper(CombineFileSplit split, Configuration conf,
       Reporter reporter, Integer idx) throws IOException {
       super(new TextInputFormat(), split, conf, reporter, idx);

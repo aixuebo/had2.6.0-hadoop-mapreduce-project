@@ -64,12 +64,18 @@ import com.google.common.collect.Multiset;
  * Splits are constructed from the files under the input paths. 
  * A split cannot have files from different pools.
  * Each split returned may contain blocks from different files.
+ *
+ *
  * If a maxSplitSize is specified, then blocks on the same node are
  * combined to form a single split. Blocks that are left over are
- * then combined with other blocks in the same rack. 
+ * then combined with other blocks in the same rack.
+ * 如果maxSplitSize设置了,则在相同node上的数据块会拆分成一个分片,余下的数据块和其他数据块在相同的rack上合并
+ *
+ *
  * If maxSplitSize is not specified, then blocks from the same rack
  * are combined in a single split; no attempt is made to create
  * node-local splits.
+ *
  * If the maxSplitSize is equal to the block size, then this class
  * is similar to the default splitting behavior in Hadoop: each
  * block is a locally processed split.
@@ -79,6 +85,69 @@ import com.google.common.collect.Multiset;
  * <code>CombineFileSplit</code>'s.
  * 
  * @see CombineFileSplit
+ * 目标是让一个map处理多个数据块以及这些数据块可能来自与不同的文件
+ * 主要是输入源都是小文件的时候可以尝试使用这种方式
+ *
+ *
+ *
+ * CombineInputFormat处理少量，较大的文件没有优势，相反，如果没有合理的设置maxSplitSize，minSizeNode，minSizeRack，则可能会导致一个map任务需要大量访问非本地的Block造成网络开销，反而比正常的非合并方式更慢。
+ * 因为本来可以在本地读取一个数据块信息的,却要读取多个文件的数据块信息,因此需要网络开销,有利弊要取舍以及测试,合理设置这三个size属性值很关键
+   而针对大量远小于块大小的小文件处理，CombineInputFormat的使用还是很有优势。
+
+ 我自己总结的分配规则--详细参见createSplits方法
+一、第一个while循环,先为每一个节点分配一个分片
+1.循环每一个有数据块的节点
+2.循环该节点上所有的数据块
+如果设置maxSize,并且数据块的字节总数超过了maxSize,则创建一个分片,不再为该数据块分配分片
+如果没设置maxSize,但是设置了minSizeNode,并且该节点上的数据块超过了minSizeNode,说明该节点上数据块可以拆分成一个大的分片
+如果没设置maxSize,但是设置了minSizeNode,并且该节点上的数据块小于minSizeNode,说明该节点上数据块太小了,不足分配一个分片,
+则不会在该节点创建任意分片,都会给rack去创建
+如果没设置maxSize,也没有设置minSizeNode,则不会在该节点创建任意分片,都会给rack去创建
+
+二、第二个while循环,为每一个rack分配分片,为每一个rack分配一个分片
+1.循环每一个rack
+2.循环该rack上所有的数据块,过滤尚未被分配的数据块
+3.如果设置maxSize,并且数据块的字节总数超过了maxSize,则在该rack上创建一个分片,不再为该数据块分配分片
+如果没设置maxSize,但是设置了minSizeRack,并且该rack上的数据块超过了minSizeRack,说明该rack上数据块可以拆分成一个大的分片
+如果没设置maxSize,但是设置了minSizeRack,并且该rack上的数据块小于minSizeRack,说明该rack上数据块太小了,不足分配一个分片,
+则不会在该rack创建任意分片,都会给overflowBlocks去保存尚未被分配的数据块,最后整体去分配
+如果没设置maxSize,也没有设置minSizeRack,则不会在该rack创建任意分片,都会给overflowBlocks去保存尚未被分配的数据块,最后整体去分配
+三、统一分配剩余的数据块
+1.循环overflowBlocks集合,即循环尚未被分配的数据块集合
+2.如果设置maxSize,并且数据块的字节总数超过了maxSize,则在该数据块集合存在的节点上创建一个分片,并且不断循环创建分片
+如果没设置maxSize,则将所有剩余的数据块都生成一个大的分片,有且只有一个。
+
+
+汇总--三个属性产生8中组合
+maxSize
+minSizeNode
+minSizeRack
+
+
+1.仅仅设置maxSize   设置了maxSize和minSizeNode    设置了maxSize和minSizeRack  设置了maxSize和minSizeNode和minSizeRack
+则效果一样,都是不关注minSizeNode和minSizeRack  --基本上每一个分片都是maxSize大小
+每一个节点上达到字节数量的都会产生一个分片
+每一个rack上达到数量的也会产生一个分片
+不断的在rack上产生分片
+
+2.仅仅设置了minSizeNode,--产生node节点数量+一个大的分片
+每一个节点上达到minSizeNode的,就会产生一个大的分片,该节点上不会到rack上分配
+如果没有达到minSizeNode,则会去rack上分配,最后所有没有达到minSizeNode的就会产生一个大的数据块
+
+3.仅仅设置了minSizeRack  --rack节点数量+一个大的分片
+每一个rack上达到minSizeRack的,就会产生一个大的分片
+如果没有达到minSizeRack,则会去overflowBlocks上分配
+overflowBlocks上最终会形成一个大的分片
+4.设置了minSizeNode和minSizeRack  --产生node节点数量+rack节点数量+一个大的分片
+每一个节点上达到minSizeNode的,就会产生一个大的分片,该节点上不会到rack上分配
+如果没有达到minSizeNode,则会去rack上分配
+
+每一个rack上达到minSizeRack的,就会产生一个大的分片
+如果没有达到minSizeRack,则会去overflowBlocks上分配
+overflowBlocks上最终会形成一个大的分片
+
+5.三个属性什么都没设置   --一个大的分片
+只会生成一个大的数据分片,包含全部数据内容
  */
 @InterfaceAudience.Public
 @InterfaceStability.Stable
@@ -101,7 +170,8 @@ public abstract class CombineFileInputFormat<K, V>
   //一个输入源文件路径的过滤集合,
   private ArrayList<MultiPathFilter> pools = new  ArrayList<MultiPathFilter>();
 
-  // mapping from a rack name to the set of Nodes in the rack 
+  // mapping from a rack name to the set of Nodes in the rack
+  //一个rack上有哪些备份节点集合
   private HashMap<String, Set<String>> rackToNodes = 
                             new HashMap<String, Set<String>>();
   /**
@@ -263,7 +333,14 @@ public abstract class CombineFileInputFormat<K, V>
 
     // all blocks for all the files in input set 每一个文件对应一个该对象
     OneFileInfo[] files;
-  
+
+    /**
+     * 添加映射信息
+     1.数据块在哪些节点上存在备份
+     2.rack上有哪些数据块
+     3.一个node节点上有哪些数据块
+     4.一个rack上有哪些备份节点集合
+     */
     // mapping from a rack name to the list of blocks it has
     HashMap<String, List<OneBlockInfo>> rackToBlocks = 
                               new HashMap<String, List<OneBlockInfo>>();
@@ -275,7 +352,7 @@ public abstract class CombineFileInputFormat<K, V>
     // mapping from a node to the list of blocks that it contains
     HashMap<String, Set<OneBlockInfo>> nodeToBlocks = 
                               new HashMap<String, Set<OneBlockInfo>>();
-    
+
     //代表一个HDFS上的path路径对应的文件--该文件包含多个数据块
     files = new OneFileInfo[stats.size()];
     if (stats.size() == 0) {
@@ -298,24 +375,29 @@ public abstract class CombineFileInputFormat<K, V>
   }
 
   @VisibleForTesting
-  void createSplits(Map<String, Set<OneBlockInfo>> nodeToBlocks,
-                     Map<OneBlockInfo, String[]> blockToNodes,
-                     Map<String, List<OneBlockInfo>> rackToBlocks,
-                     long totLength,
+  void createSplits(Map<String, Set<OneBlockInfo>> nodeToBlocks,//每一个节点上存储哪些数据块
+                     Map<OneBlockInfo, String[]> blockToNodes,//每一个数据块在哪个节点存在
+                     Map<String, List<OneBlockInfo>> rackToBlocks,//每一个rack上存储哪些数据块
+                     long totLength,//所有数据块的总长度
                      long maxSize,
                      long minSizeNode,
                      long minSizeRack,
-                     List<InputSplit> splits                     
+                     List<InputSplit> splits//最终存储分片的对象
                     ) {
-    ArrayList<OneBlockInfo> validBlocks = new ArrayList<OneBlockInfo>();
-    long curSplitSize = 0;
-    
-    int totalNodes = nodeToBlocks.size();
-    long totalLength = totLength;
 
-    Multiset<String> splitsPerNode = HashMultiset.create();
-    Set<String> completedNodes = new HashSet<String>();
+    //暂时有效的数据块
+    ArrayList<OneBlockInfo> validBlocks = new ArrayList<OneBlockInfo>();
+    long curSplitSize = 0;//当前validBlocks中数据块字节长度
     
+    int totalNodes = nodeToBlocks.size();//总共数据块都在几个节点上存在
+    long totalLength = totLength;//所有数据块的剩余总长度
+
+    Multiset<String> splitsPerNode = HashMultiset.create();//在哪些节点上有合并后的数据块
+
+    //说明该节点已经彻底处理完,没有数据块了
+    Set<String> completedNodes = new HashSet<String>();
+
+    //while 循环开始
     while(true) {
       // it is allowed for maxSize to be 0. Disable smoothing load for such cases
 
@@ -323,39 +405,45 @@ public abstract class CombineFileInputFormat<K, V>
       // one split per node iteration, and walk over nodes multiple times to
       // distribute the splits across nodes. 
       for (Iterator<Map.Entry<String, Set<OneBlockInfo>>> iter = nodeToBlocks
-          .entrySet().iterator(); iter.hasNext();) {
+          .entrySet().iterator(); iter.hasNext();) {//循环每一个节点
         Map.Entry<String, Set<OneBlockInfo>> one = iter.next();
         
-        String node = one.getKey();
+        String node = one.getKey();//节点
         
         // Skip the node if it has previously been marked as completed.
-        if (completedNodes.contains(node)) {
+        if (completedNodes.contains(node)) {//基本上不会走这里面
           continue;
         }
 
-        Set<OneBlockInfo> blocksInCurrentNode = one.getValue();
+        Set<OneBlockInfo> blocksInCurrentNode = one.getValue();//该节点上存储的数据块集合
 
         // for each block, copy it into validBlocks. Delete it from
         // blockToNodes so that the same block does not appear in
         // two different splits.
-        Iterator<OneBlockInfo> oneBlockIter = blocksInCurrentNode.iterator();
+        //避免相同的数据块被拆分成两次处理
+        /**
+         * 本次循环该节点上所有数据块,分两种情况
+         * 1.设置maxSize,因此在本节点上分配的数据块达到maxSize时候,则生成一个拆分文件,然后不会在该节点上生成第二个数据块了
+         * 2.如果没有设置maxSize,则将全部信息汇总到validBlocks集合中
+         */
+        Iterator<OneBlockInfo> oneBlockIter = blocksInCurrentNode.iterator();//循环该节点上每一个数据块
         while (oneBlockIter.hasNext()) {
-          OneBlockInfo oneblock = oneBlockIter.next();
+          OneBlockInfo oneblock = oneBlockIter.next();//数据块对象
           
           // Remove all blocks which may already have been assigned to other
-          // splits.
-          if(!blockToNodes.containsKey(oneblock)) {
-            oneBlockIter.remove();
+          // splits.移除所有已经被分配到其他分片中的数据块
+          if(!blockToNodes.containsKey(oneblock)) {//说明该数据块已经被其他节点分配完了,因为一个数据块在多个节点都有备份
+            oneBlockIter.remove();//不处理该数据块
             continue;
           }
         
           validBlocks.add(oneblock);
-          blockToNodes.remove(oneblock);
+          blockToNodes.remove(oneblock);//移除该数据块,因为已经处理完了
           curSplitSize += oneblock.length;
 
           // if the accumulated split size exceeds the maximum, then
           // create this split.
-          if (maxSize != 0 && curSplitSize >= maxSize) {
+          if (maxSize != 0 && curSplitSize >= maxSize) {//说明可以拆分成一个数据块了
             // create an input split and add it to the splits array
             addCreatedSplit(splits, Collections.singleton(node), validBlocks);
             totalLength -= curSplitSize;
@@ -364,29 +452,32 @@ public abstract class CombineFileInputFormat<K, V>
             splitsPerNode.add(node);
 
             // Remove entries from blocksInNode so that we don't walk these
-            // again.
+            // again.不需要在分配了,因此移除这些数据块
             blocksInCurrentNode.removeAll(validBlocks);
             validBlocks.clear();
 
             // Done creating a single split for this node. Move on to the next
             // node so that splits are distributed across nodes.
+            //在该节点上仅会创建一个单独的分片,移除到下一个节点上,因此分片会被部署在多个节点上
             break;
           }
-
         }
         if (validBlocks.size() != 0) {
+          //暗示所有的数据块不是一个分片,这个节点完成
           // This implies that the last few blocks (or all in case maxSize=0)
           // were not part of a split. The node is complete.
           
           // if there were any blocks left over and their combined size is
           // larger than minSplitNode, then combine them into one split.
+          //如何所以数据块的组合大小,超过了minSplitNode,则和并他们成一个分片
           // Otherwise add them back to the unprocessed pool. It is likely
           // that they will be combined with other blocks from the
           // same rack later on.
+          //否则将这些数据块重新设置成为分配,他将会被rack上其他节点合并
           // This condition also kicks in when max split size is not set. All
           // blocks on a node will be grouped together into a single split.
           if (minSizeNode != 0 && curSplitSize >= minSizeNode
-              && splitsPerNode.count(node) == 0) {
+              && splitsPerNode.count(node) == 0) {//如果文件大小已经超过了最小聚合的阀值,因此将该文件都在该节点上分片
             // haven't created any split on this machine. so its ok to add a
             // smaller one for parallelism. Otherwise group it in the rack for
             // balanced size create an input split and add it to the splits
@@ -399,6 +490,7 @@ public abstract class CombineFileInputFormat<K, V>
             // The node is done. This was the last set of blocks for this node.
           } else {
             // Put the unplaced blocks back into the pool for later rack-allocation.
+            //重新放回去,让后续的rack处理
             for (OneBlockInfo oneblock : validBlocks) {
               blockToNodes.put(oneblock, oneblock.hosts);
             }
@@ -407,14 +499,14 @@ public abstract class CombineFileInputFormat<K, V>
           curSplitSize = 0;
           completedNodes.add(node);
         } else { // No in-flight blocks.
-          if (blocksInCurrentNode.size() == 0) {
+          if (blocksInCurrentNode.size() == 0) {//说明该节点已经彻底处理完,没有数据块了
             // Node is done. All blocks were fit into node-local splits.
             completedNodes.add(node);
           } // else Run through the node again.
         }
       }
 
-      // Check if node-local assignments are complete.
+      // Check if node-local assignments are complete.校验本地节点是否都已经全部分配完成
       if (completedNodes.size() == totalNodes || totalLength == 0) {
         // All nodes have been walked over and marked as completed or all blocks
         // have been assigned. The rest should be handled via rackLock assignment.
@@ -423,15 +515,19 @@ public abstract class CombineFileInputFormat<K, V>
         break;
       }
     }
+    //while 循环结束
 
     // if blocks in a rack are below the specified minimum size, then keep them
     // in 'overflow'. After the processing of all racks is complete, these 
     // overflow blocks will be combined into splits.
+    //还会保留一些数据可--本应该数据该rack,但是由于字节太小,暂时尚不分配
     ArrayList<OneBlockInfo> overflowBlocks = new ArrayList<OneBlockInfo>();
-    Set<String> racks = new HashSet<String>();
+    Set<String> racks = new HashSet<String>();//所有的rack集合
 
     // Process all racks over and over again until there is no more work to do.
-    while (blockToNodes.size() > 0) {
+    //处理所有rack
+    //while 循环开始
+    while (blockToNodes.size() > 0) {//处理剩余的数据块
 
       // Create one split for this rack before moving over to the next rack. 
       // Come back to this rack after creating a single split for each of the 
@@ -442,19 +538,19 @@ public abstract class CombineFileInputFormat<K, V>
 
       // iterate over all racks 
       for (Iterator<Map.Entry<String, List<OneBlockInfo>>> iter = 
-           rackToBlocks.entrySet().iterator(); iter.hasNext();) {
+           rackToBlocks.entrySet().iterator(); iter.hasNext();) {//循环每一个rack
 
         Map.Entry<String, List<OneBlockInfo>> one = iter.next();
         racks.add(one.getKey());
-        List<OneBlockInfo> blocks = one.getValue();
+        List<OneBlockInfo> blocks = one.getValue();//该rack上分配的数据块
 
         // for each block, copy it into validBlocks. Delete it from 
         // blockToNodes so that the same block does not appear in 
         // two different splits.
-        boolean createdSplit = false;
+        boolean createdSplit = false;//true表示已经拆分成一个数据块在该rack上
         for (OneBlockInfo oneblock : blocks) {
-          if (blockToNodes.containsKey(oneblock)) {
-            validBlocks.add(oneblock);
+          if (blockToNodes.containsKey(oneblock)) {//说明数据块还有效
+            validBlocks.add(oneblock);//设置有效的数据块
             blockToNodes.remove(oneblock);
             curSplitSize += oneblock.length;
       
@@ -477,15 +573,16 @@ public abstract class CombineFileInputFormat<K, V>
           continue;
         }
 
-        if (!validBlocks.isEmpty()) {
-          if (minSizeRack != 0 && curSplitSize >= minSizeRack) {
+        if (!validBlocks.isEmpty()) {//rack上有有效的数据块
+          if (minSizeRack != 0 && curSplitSize >= minSizeRack) {//大于最小的rack
             // if there is a minimum size specified, then create a single split
             // otherwise, store these blocks into overflow data structure
-            addCreatedSplit(splits, getHosts(racks), validBlocks);
+            addCreatedSplit(splits, getHosts(racks), validBlocks);//将所有数据块在rack上分配一个分片
           } else {
             // There were a few blocks in this rack that 
         	// remained to be processed. Keep them in 'overflow' block list. 
         	// These will be combined later.
+            //还会保留一些数据可--本应该数据该rack,但是由于字节太小,暂时尚不分配
             overflowBlocks.addAll(validBlocks);
           }
         }
@@ -494,6 +591,7 @@ public abstract class CombineFileInputFormat<K, V>
         racks.clear();
       }
     }
+    //while 循环结束
 
     assert blockToNodes.isEmpty();
     assert curSplitSize == 0;
@@ -501,19 +599,19 @@ public abstract class CombineFileInputFormat<K, V>
     assert racks.isEmpty();
 
     // Process all overflow blocks
-    for (OneBlockInfo oneblock : overflowBlocks) {
+    for (OneBlockInfo oneblock : overflowBlocks) {//循环每一个数据块
       validBlocks.add(oneblock);
       curSplitSize += oneblock.length;
 
       // This might cause an exiting rack location to be re-added,
       // but it should be ok.
-      for (int i = 0; i < oneblock.racks.length; i++) {
+      for (int i = 0; i < oneblock.racks.length; i++) {//该数据块所属rack
         racks.add(oneblock.racks[i]);
       }
 
       // if the accumulated split size exceeds the maximum, then 
       // create this split.
-      if (maxSize != 0 && curSplitSize >= maxSize) {
+      if (maxSize != 0 && curSplitSize >= maxSize) {//超过阀值,则创建一个分片
         // create an input split and add it to the splits array
         addCreatedSplit(splits, getHosts(racks), validBlocks);
         curSplitSize = 0;
@@ -522,7 +620,7 @@ public abstract class CombineFileInputFormat<K, V>
       }
     }
 
-    // Process any remaining blocks, if any.
+    // Process any remaining blocks, if any.如果还有数据块,则创建一个分片
     if (!validBlocks.isEmpty()) {
       addCreatedSplit(splits, getHosts(racks), validBlocks);
     }
@@ -531,10 +629,12 @@ public abstract class CombineFileInputFormat<K, V>
   /**
    * Create a single split from the list of blocks specified in validBlocks
    * Add this new split into splitList.
+   * 真正产生一个数据块--该数据块包含多个文件
+   *
    */
-  private void addCreatedSplit(List<InputSplit> splitList, 
-                               Collection<String> locations, 
-                               ArrayList<OneBlockInfo> validBlocks) {
+  private void addCreatedSplit(List<InputSplit> splitList,//用于存储最终产生的数据块集合
+                               Collection<String> locations, //该数据块都在哪些节点上存在
+                               ArrayList<OneBlockInfo> validBlocks) {//该合并的数据块要包含哪些真的数据块
     // create an input split
     Path[] fl = new Path[validBlocks.size()];
     long[] offset = new long[validBlocks.size()];
@@ -563,7 +663,7 @@ public abstract class CombineFileInputFormat<K, V>
   @VisibleForTesting
   static class OneFileInfo {
     private long fileSize;               // size of the file该文件所有的数据块总大小
-    private OneBlockInfo[] blocks;       // all blocks in this file 该文件对应的所有数据块集合,每一个对象代表一个数据块
+    private OneBlockInfo[] blocks;       // all blocks in this file 该文件对应的所有数据块集合,每一个对象代表一个数据块,该数据块可能是原始数据块又进一步拆分成更小的数据块
 
     OneFileInfo(FileStatus stat, Configuration conf,
                 boolean isSplitable,
@@ -605,17 +705,17 @@ public abstract class CombineFileInputFormat<K, V>
           ArrayList<OneBlockInfo> blocksList = new ArrayList<OneBlockInfo>(
               locations.length);
           for (int i = 0; i < locations.length; i++) {
-            fileSize += locations[i].getLength();
+            fileSize += locations[i].getLength();//所有数据块大小
 
             // each split can be a maximum of maxSize
-            long left = locations[i].getLength();
-            long myOffset = locations[i].getOffset();
+            long left = locations[i].getLength();//数据筷大小
+            long myOffset = locations[i].getOffset();//数据开始偏移位置
             long myLength = 0;
             do {
-              if (maxSize == 0) {
+              if (maxSize == 0) {//如果没有设置maxSize,则myLength的大小就是这个数据块大小
                 myLength = left;
               } else {
-                if (left > maxSize && left < 2 * maxSize) {
+                if (left > maxSize && left < 2 * maxSize) {//如果数据块大小在maxSize和2倍maxSize之间,则将该数据块平均拆分成两个,防止一个数据块过于小,导致一个map处理时间长，一个处理时间短
                   // if remainder is between max and 2*max - then
                   // instead of creating splits of size max, left-max we
                   // create splits of size left/2 and left/2. This is
@@ -623,16 +723,16 @@ public abstract class CombineFileInputFormat<K, V>
                   // splits.
                   myLength = left / 2;
                 } else {
-                  myLength = Math.min(maxSize, left);
+                  myLength = Math.min(maxSize, left);//如果maxSize比数据块大,则就保留数据块本身大小,如果数据块比maxSize大,则拆分数据块,按照maxSize拆分他成多个数据块
                 }
               }
               OneBlockInfo oneblock = new OneBlockInfo(stat.getPath(),
                   myOffset, myLength, locations[i].getHosts(),
                   locations[i].getTopologyPaths());
-              left -= myLength;
-              myOffset += myLength;
+              left -= myLength;//减少数据块本身大小
+              myOffset += myLength;//增加偏移位置
 
-              blocksList.add(oneblock);
+              blocksList.add(oneblock);//添加一个数据块
             } while (left > 0);
           }
           blocks = blocksList.toArray(new OneBlockInfo[blocksList.size()]);
@@ -642,45 +742,60 @@ public abstract class CombineFileInputFormat<K, V>
                           nodeToBlocks, rackToNodes);
       }
     }
-    
+
+      /**
+       * 添加映射信息
+       1.数据块在哪些节点上存在备份
+       2.rack上有哪些数据块
+       3.一个node节点上有哪些数据块
+       4.一个rack上有哪些备份节点集合
+       * @param blocks
+       * @param rackToBlocks
+       * @param blockToNodes
+       * @param nodeToBlocks
+       * @param rackToNodes
+       */
     @VisibleForTesting
     static void populateBlockInfo(OneBlockInfo[] blocks,
                           Map<String, List<OneBlockInfo>> rackToBlocks,
                           Map<OneBlockInfo, String[]> blockToNodes,
                           Map<String, Set<OneBlockInfo>> nodeToBlocks,
                           Map<String, Set<String>> rackToNodes) {
-      for (OneBlockInfo oneblock : blocks) {
+      for (OneBlockInfo oneblock : blocks) {//循环拆分后的每一个数据块
         // add this block to the block --> node locations map
-        blockToNodes.put(oneblock, oneblock.hosts);
+        blockToNodes.put(oneblock, oneblock.hosts);//数据块在哪些节点上存在备份
 
         // For blocks that do not have host/rack information,
         // assign to default  rack.
+        //该数据块所在rack集合
         String[] racks = null;
-        if (oneblock.hosts.length == 0) {
+        if (oneblock.hosts.length == 0) {//没有host,则默认是rack上存在
           racks = new String[]{NetworkTopology.DEFAULT_RACK};
         } else {
           racks = oneblock.racks;
         }
 
+        //映射rack上有哪些数据块
         // add this block to the rack --> block map
-        for (int j = 0; j < racks.length; j++) {
+        for (int j = 0; j < racks.length; j++) {//循环所有rack集合
           String rack = racks[j];
-          List<OneBlockInfo> blklist = rackToBlocks.get(rack);
+          List<OneBlockInfo> blklist = rackToBlocks.get(rack);//设置该rack上有哪些数据块
           if (blklist == null) {
             blklist = new ArrayList<OneBlockInfo>();
             rackToBlocks.put(rack, blklist);
           }
           blklist.add(oneblock);
-          if (!racks[j].equals(NetworkTopology.DEFAULT_RACK)) {
+          if (!racks[j].equals(NetworkTopology.DEFAULT_RACK)) {//如果不是默认rack,则添加rack和节点的映射关系,即一个rack上有哪些节点
             // Add this host to rackToNodes map
             addHostToRack(rackToNodes, racks[j], oneblock.hosts[j]);
           }
         }
 
+        //循环该数据块所在的host节点集合
         // add this block to the node --> block map
         for (int j = 0; j < oneblock.hosts.length; j++) {
           String node = oneblock.hosts[j];
-          Set<OneBlockInfo> blklist = nodeToBlocks.get(node);
+          Set<OneBlockInfo> blklist = nodeToBlocks.get(node);//添加一个host节点上有那些数据块
           if (blklist == null) {
             blklist = new LinkedHashSet<OneBlockInfo>();
             nodeToBlocks.put(node, blklist);
@@ -701,14 +816,15 @@ public abstract class CombineFileInputFormat<K, V>
 
   /**
    * information about one block from the File System
+   * 代表一个数据块
    */
   @VisibleForTesting
   static class OneBlockInfo {
-    Path onepath;                // name of this file
+    Path onepath;                // name of this file 该文件所在path
     long offset;                 // offset in file
     long length;                 // length of this block
-    String[] hosts;              // nodes on which this block resides
-    String[] racks;              // network topology of hosts
+    String[] hosts;              // nodes on which this block resides 该数据块在那些节点上存在
+    String[] racks;              // network topology of hosts 一个rack上有多个节点,因此该数据块在哪些rack上存在   命名 host:rack
 
     OneBlockInfo(Path path, long offset, long len, 
                  String[] hosts, String[] topologyPaths) {

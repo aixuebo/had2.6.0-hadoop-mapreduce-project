@@ -35,6 +35,9 @@ import org.apache.hadoop.conf.Configuration;
  * This class allows using different RecordReaders for processing
  * these data chunks from different files.
  * @see CombineFileSplit
+ * 如何读取多个文件以及数据块
+ *
+ * 代表一个map节点要如何读
  */
 @InterfaceAudience.Public
 @InterfaceStability.Stable
@@ -46,21 +49,21 @@ public class CombineFileRecordReader<K, V> implements RecordReader<K, V> {
                                           Reporter.class,
                                           Integer.class};
 
-  protected CombineFileSplit split;
+  protected CombineFileSplit split;//该map处理的分片
   protected JobConf jc;
   protected Reporter reporter;
   protected Class<RecordReader<K, V>> rrClass;
   protected Constructor<RecordReader<K, V>> rrConstructor;
   protected FileSystem fs;
   
-  protected int idx;
-  protected long progress;
+  protected int idx;//表示该数据分片中第几个文件
+  protected long progress;//已经处理了多少个字节
   protected RecordReader<K, V> curReader;
   
   public boolean next(K key, V value) throws IOException {
 
     while ((curReader == null) || !curReader.next(key, value)) {
-      if (!initNextRecordReader()) {
+      if (!initNextRecordReader()) {//一个一个文件读取
         return false;
       }
     }
@@ -113,7 +116,7 @@ public class CombineFileRecordReader<K, V> implements RecordReader<K, V> {
     this.progress = 0;
 
     try {
-      rrConstructor = rrClass.getDeclaredConstructor(constructorSignature);
+      rrConstructor = rrClass.getDeclaredConstructor(constructorSignature);//反射得到如何读取一个数据块文件
       rrConstructor.setAccessible(true);
     } catch (Exception e) {
       throw new RuntimeException(rrClass.getName() + 
@@ -124,19 +127,20 @@ public class CombineFileRecordReader<K, V> implements RecordReader<K, V> {
   
   /**
    * Get the record reader for the next chunk in this CombineFileSplit.
+   * 一个数据块一个数据块的读取
    */
   protected boolean initNextRecordReader() throws IOException {
 
     if (curReader != null) {
       curReader.close();
       curReader = null;
-      if (idx > 0) {
+      if (idx > 0) {//切换
         progress += split.getLength(idx-1);    // done processing so far
       }
     }
 
     // if all chunks have been processed, nothing more to do.
-    if (idx == split.getNumPaths()) {
+    if (idx == split.getNumPaths()) {//是否是最后一个数据文件
       return false;
     }
 
@@ -148,6 +152,7 @@ public class CombineFileRecordReader<K, V> implements RecordReader<K, V> {
                             {split, jc, reporter, Integer.valueOf(idx)});
 
       // setup some helper config variables.
+      //设置该文件的路径以及开始位置和长度
       jc.set(JobContext.MAP_INPUT_FILE, split.getPath(idx).toString());
       jc.setLong(JobContext.MAP_INPUT_START, split.getOffset(idx));
       jc.setLong(JobContext.MAP_INPUT_PATH, split.getLength(idx));

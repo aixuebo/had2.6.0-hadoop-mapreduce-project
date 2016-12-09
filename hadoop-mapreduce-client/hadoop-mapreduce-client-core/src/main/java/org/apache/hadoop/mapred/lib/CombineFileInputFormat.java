@@ -127,6 +127,7 @@ public abstract class CombineFileInputFormat<K, V>
    * @param job the job to list input paths for
    * @return array of FileStatus objects
    * @throws IOException if zero items.
+   * 匹配的文件集合
    */
   protected FileStatus[] listStatus(JobConf job) throws IOException {
     List<FileStatus> result = super.listStatus(new Job(job));

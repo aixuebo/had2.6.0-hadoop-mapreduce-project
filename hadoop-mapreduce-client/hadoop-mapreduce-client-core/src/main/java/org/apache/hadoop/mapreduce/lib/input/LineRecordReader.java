@@ -49,7 +49,7 @@ import org.apache.commons.logging.Log;
 public class LineRecordReader extends RecordReader<LongWritable, Text> {
   private static final Log LOG = LogFactory.getLog(LineRecordReader.class);
   public static final String MAX_LINE_LENGTH = "mapreduce.input.linerecordreader.line.maxlength";//行的最大字节数 
-  private int maxLineLength;//每行最多允许处理的字节数
+  private int maxLineLength;//每行最多允许处理的字节数,即截断一部分字符串,返回截断后的数据给value
   
   private long start;//待处理的数据块在整个文件中的偏移量
   private long pos;//目前已经处理到文件的偏移量位置
@@ -63,7 +63,7 @@ public class LineRecordReader extends RecordReader<LongWritable, Text> {
   private Text value;
   private boolean isCompressedInput;//是否是压缩文件
   private Decompressor decompressor;//解压缩类
-  private byte[] recordDelimiterBytes;
+  private byte[] recordDelimiterBytes;//以什么结束一行,即一行的分隔符
 
   public LineRecordReader() {
   }
@@ -107,14 +107,17 @@ public class LineRecordReader extends RecordReader<LongWritable, Text> {
     // If this is not the first split, we always throw away first record
     // because we always (except the last split) read one extra line in
     // next() method.
-    if (start != 0) {//过滤第一行
+    if (start != 0) {//过滤第一行,因为第一行可能是半个行内容,已经被上一个split处理了数据,本次不需要处理
       start += in.readLine(new Text(), 0, maxBytesToConsume(start));
     }
     this.pos = start;
   }
   
 
+  //返回本次读取做大字节数
   private int maxBytesToConsume(long pos) {
+    //如果是压缩的,那就是int就是最大值
+    //如果不是压缩的,则最大值就是end-pos,即剩余字节数,如果剩余字节数量<maxLineLength,则返回maxLineLength
     return isCompressedInput
       ? Integer.MAX_VALUE
       : (int) Math.max(Math.min(Integer.MAX_VALUE, end - pos), maxLineLength);
@@ -131,10 +134,12 @@ public class LineRecordReader extends RecordReader<LongWritable, Text> {
     return retVal;
   }
 
+  //用于第一个数据块,检查前三个字符是否是UTF-8的编码字符
   private int skipUtfByteOrderMark() throws IOException {
     // Strip BOM(Byte Order Mark)
     // Text only support UTF-8, we only need to check UTF-8 BOM
     // (0xEF,0xBB,0xBF) at the start of the text stream.
+    //Text目前只支持UTF-8类型的编码,因此我们要校验UTF8的前三个字节
     int newMaxLineLength = (int) Math.min(3L + (long) maxLineLength,
         Integer.MAX_VALUE);
     int newSize = in.readLine(value, newMaxLineLength, maxBytesToConsume(pos));
@@ -156,7 +161,7 @@ public class LineRecordReader extends RecordReader<LongWritable, Text> {
       if (textLength > 0) {
         // It may work to use the same buffer and not do the copyBytes
         textBytes = value.copyBytes();
-        value.set(textBytes, 3, textLength);
+        value.set(textBytes, 3, textLength);//重新设置value,除去前三个字节
       } else {
         value.clear();
       }
@@ -172,7 +177,7 @@ public class LineRecordReader extends RecordReader<LongWritable, Text> {
     if (key == null) {
       key = new LongWritable();
     }
-    key.set(pos);
+    key.set(pos);//目前已经处理到文件的偏移量位置 作为key
     if (value == null) {
       value = new Text();
     }
@@ -180,14 +185,14 @@ public class LineRecordReader extends RecordReader<LongWritable, Text> {
     // We always read one extra line, which lies outside the upper
     // split limit i.e. (end - 1)
     while (getFilePosition() <= end || in.needAdditionalRecordAfterSplit()) {
-      if (pos == 0) {
+      if (pos == 0) {//说明是第一个数据块
         newSize = skipUtfByteOrderMark();
       } else {
-        newSize = in.readLine(value, maxLineLength, maxBytesToConsume(pos));
+        newSize = in.readLine(value, maxLineLength, maxBytesToConsume(pos));//从输入流中读一行数据,存储到value中,返回真正读取了多少个字节
         pos += newSize;
       }
 
-      if ((newSize == 0) || (newSize < maxLineLength)) {
+      if ((newSize == 0) || (newSize < maxLineLength)) {//如果超出字节限制,则不会break,继续读取下一行数据
         break;
       }
 
