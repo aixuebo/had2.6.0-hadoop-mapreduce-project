@@ -34,6 +34,7 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 /**
  * InputFormat reading keys, values from SequenceFiles in binary (raw)
  * format.
+ * 读取序列化文件,只是返回值不再是泛型,而是具体的类型,key和value都是字节数组类型的时候使用该类去读取
  */
 @InterfaceAudience.Public
 @InterfaceStability.Stable
@@ -94,6 +95,7 @@ public class SequenceFileAsBinaryInputFormat
     /**
      * Retrieve the name of the key class for this SequenceFile.
      * @see org.apache.hadoop.io.SequenceFile.Reader#getKeyClassName
+     * key对应哪个类
      */
     public String getKeyClassName() {
       return in.getKeyClassName();
@@ -102,6 +104,7 @@ public class SequenceFileAsBinaryInputFormat
     /**
      * Retrieve the name of the value class for this SequenceFile.
      * @see org.apache.hadoop.io.SequenceFile.Reader#getValueClassName
+     * value对应哪个类
      */
     public String getValueClassName() {
       return in.getValueClassName();
@@ -116,7 +119,7 @@ public class SequenceFileAsBinaryInputFormat
         return false;
       }
       long pos = in.getPosition();
-      boolean eof = -1 == in.nextRawKey(buffer);
+      boolean eof = -1 == in.nextRawKey(buffer);//读取key到buffer中
       if (!eof) {
         if (key == null) {
           key = new BytesWritable();
@@ -126,7 +129,7 @@ public class SequenceFileAsBinaryInputFormat
         }
         key.set(buffer.getData(), 0, buffer.getLength());
         buffer.reset();
-        in.nextRawValue(vbytes);
+        in.nextRawValue(vbytes);//读取value到buffer中
         vbytes.writeUncompressedBytes(buffer);
         value.set(buffer.getData(), 0, buffer.getLength());
         buffer.reset();

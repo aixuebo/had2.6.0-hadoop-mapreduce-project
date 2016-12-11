@@ -49,20 +49,25 @@ import org.apache.hadoop.util.ReflectionUtils;
 @InterfaceStability.Unstable
 public class DelegatingInputFormat<K, V> extends InputFormat<K, V> {
 
+  //拆分
   @SuppressWarnings("unchecked")
   public List<InputSplit> getSplits(JobContext job) 
       throws IOException, InterruptedException {
-    Configuration conf = job.getConfiguration();
+    
+	Configuration conf = job.getConfiguration();
     Job jobCopy =new Job(conf);
-    List<InputSplit> splits = new ArrayList<InputSplit>();
-    Map<Path, InputFormat> formatMap = 
-      MultipleInputs.getInputFormatMap(job);
-    Map<Path, Class<? extends Mapper>> mapperMap = MultipleInputs
-       .getMapperTypeMap(job);
-    Map<Class<? extends InputFormat>, List<Path>> formatPaths
-        = new HashMap<Class<? extends InputFormat>, List<Path>>();
+    List<InputSplit> splits = new ArrayList<InputSplit>();//总分块集合
+    
+    //每一个path对应什么输入格式,以及如何处理该path路径对应的文件
+    Map<Path, InputFormat> formatMap = MultipleInputs.getInputFormatMap(job);
+    Map<Path, Class<? extends Mapper>> mapperMap = MultipleInputs.getMapperTypeMap(job);
+    
+    //汇总一种格式对应的一组路径
+    Map<Class<? extends InputFormat>, List<Path>> formatPaths = new HashMap<Class<? extends InputFormat>, List<Path>>();
+        
 
     // First, build a map of InputFormats to Paths
+    //汇总一种格式对应的一组路径
     for (Entry<Path, InputFormat> entry : formatMap.entrySet()) {
       if (!formatPaths.containsKey(entry.getValue().getClass())) {
        formatPaths.put(entry.getValue().getClass(), new LinkedList<Path>());
@@ -71,15 +76,19 @@ public class DelegatingInputFormat<K, V> extends InputFormat<K, V> {
       formatPaths.get(entry.getValue().getClass()).add(entry.getKey());
     }
 
-    for (Entry<Class<? extends InputFormat>, List<Path>> formatEntry : 
-        formatPaths.entrySet()) {
+    //获取每一个读取方式
+    for (Entry<Class<? extends InputFormat>, List<Path>> formatEntry : formatPaths.entrySet()) {
+        
+      //读取方式,并且实例化该对象
       Class<? extends InputFormat> formatClass = formatEntry.getKey();
-      InputFormat format = (InputFormat) ReflectionUtils.newInstance(
-         formatClass, conf);
+      InputFormat format = (InputFormat) ReflectionUtils.newInstance(formatClass, conf);
+         
+      //属于该方式的路径集合
       List<Path> paths = formatEntry.getValue();
 
-      Map<Class<? extends Mapper>, List<Path>> mapperPaths
-          = new HashMap<Class<? extends Mapper>, List<Path>>();
+      //因为每一个路径虽然文件格式是一样的,但是处理方法可能不一样,因此每一个map类可能对应一组路径
+      Map<Class<? extends Mapper>, List<Path>> mapperPaths = new HashMap<Class<? extends Mapper>, List<Path>>();
+          
 
       // Now, for each set of paths that have a common InputFormat, build
       // a map of Mappers to the paths they're used for
@@ -92,10 +101,10 @@ public class DelegatingInputFormat<K, V> extends InputFormat<K, V> {
        mapperPaths.get(mapperClass).add(path);
       }
 
+      
       // Now each set of paths that has a common InputFormat and Mapper can
       // be added to the same job, and split together.
-      for (Entry<Class<? extends Mapper>, List<Path>> mapEntry :
-          mapperPaths.entrySet()) {
+      for (Entry<Class<? extends Mapper>, List<Path>> mapEntry : mapperPaths.entrySet()) {
        paths = mapEntry.getValue();
        Class<? extends Mapper> mapperClass = mapEntry.getKey();
 
@@ -107,12 +116,12 @@ public class DelegatingInputFormat<K, V> extends InputFormat<K, V> {
          }
        }
 
-       FileInputFormat.setInputPaths(jobCopy, paths.toArray(new Path[paths
-           .size()]));
-
+       //如果该格式的路径集合
+       FileInputFormat.setInputPaths(jobCopy, paths.toArray(new Path[paths.size()]));
+           
        // Get splits for each input path and tag with InputFormat
        // and Mapper types by wrapping in a TaggedInputSplit.
-       List<InputSplit> pathSplits = format.getSplits(jobCopy);
+       List<InputSplit> pathSplits = format.getSplits(jobCopy);//对该输入集合的数据进行拆分,分块
        for (InputSplit pathSplit : pathSplits) {
          splits.add(new TaggedInputSplit(pathSplit, conf, format.getClass(),
              mapperClass));
@@ -123,6 +132,7 @@ public class DelegatingInputFormat<K, V> extends InputFormat<K, V> {
     return splits;
   }
 
+  //读取一个数据块
   @Override
   public RecordReader<K, V> createRecordReader(InputSplit split,
       TaskAttemptContext context) throws IOException, InterruptedException {

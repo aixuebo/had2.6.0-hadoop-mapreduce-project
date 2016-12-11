@@ -30,11 +30,12 @@ import org.apache.hadoop.util.ReflectionUtils;
 /**
  * This is a delegating RecordReader, which delegates the functionality to the
  * underlying record reader in {@link TaggedInputSplit}  
+ * 如何读取一个数据切片内容,因为不同切片对应不同的输入格式
  */
 @InterfaceAudience.Private
 @InterfaceStability.Unstable
 public class DelegatingRecordReader<K, V> extends RecordReader<K, V> {
-  RecordReader<K, V> originalRR;
+  RecordReader<K, V> originalRR;//读取该切片的格式流
 
   /**
    * Constructs the DelegatingRecordReader.
@@ -50,10 +51,10 @@ public class DelegatingRecordReader<K, V> extends RecordReader<K, V> {
       throws IOException, InterruptedException {
     // Find the InputFormat and then the RecordReader from the
     // TaggedInputSplit.
-    TaggedInputSplit taggedInputSplit = (TaggedInputSplit) split;
+    TaggedInputSplit taggedInputSplit = (TaggedInputSplit) split;//切片内容
     InputFormat<K, V> inputFormat = (InputFormat<K, V>) ReflectionUtils
         .newInstance(taggedInputSplit.getInputFormatClass(), context
-            .getConfiguration());
+            .getConfiguration());//获取切片对应的读取格式
     originalRR = inputFormat.createRecordReader(taggedInputSplit
         .getInputSplit(), context);
   }

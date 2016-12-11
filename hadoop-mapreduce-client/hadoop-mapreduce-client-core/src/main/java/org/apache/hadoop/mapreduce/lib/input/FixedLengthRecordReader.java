@@ -44,6 +44,10 @@ import org.apache.commons.logging.Log;
 /**
  * A reader to read fixed length records from a split.  Record offset is
  * returned as key and the record as bytes is returned in value.
+ * 
+ * FileInputFormat是一行一行读取数据,每一个map方法按照行进行拆分,而本类是根据固定字节长度为一段内容进行拆分
+ * 
+ * key是字节偏移量 value是需要的字节数组
  */
 @InterfaceAudience.Private
 @InterfaceStability.Evolving
@@ -59,10 +63,15 @@ public class FixedLengthRecordReader
   private long  numRecordsRemainingInSplit;
   private FSDataInputStream fileIn;
   private Seekable filePosition;
+  
+  
   private LongWritable key;
   private BytesWritable value;
+  
+  
   private boolean isCompressedInput;
   private Decompressor decompressor;
+  
   private InputStream inputStream;
 
   public FixedLengthRecordReader(int recordLength) {
@@ -83,8 +92,8 @@ public class FixedLengthRecordReader
                          Path file) throws IOException {
     start = splitStart;
     end = start + splitLength;
-    long partialRecordLength = start % recordLength;
-    long numBytesToSkip = 0;
+    long partialRecordLength = start % recordLength;//余数,比如start=100,每个记录recordLength=6个字节  因此100/6余数是4  也就是说这个split有2个字节已经被别的split使用了,这2个字节是因为一共需要6个字节,前一个split有4个字节,因此使用了这个split2个字节,我们要跳过2个字节
+    long numBytesToSkip = 0;//跳过字节数
     if (partialRecordLength != 0) {
       numBytesToSkip = recordLength - partialRecordLength;
     }
@@ -108,8 +117,8 @@ public class FixedLengthRecordReader
       fileIn.seek(start);
       filePosition = fileIn;
       inputStream = fileIn;
-      long splitSize = end - start - numBytesToSkip;
-      numRecordsRemainingInSplit = (splitSize + recordLength - 1)/recordLength;
+      long splitSize = end - start - numBytesToSkip;//计算split真正大小
+      numRecordsRemainingInSplit = (splitSize + recordLength - 1)/recordLength;//记录该split有多少个固定大小的数据
       if (numRecordsRemainingInSplit < 0) {
         numRecordsRemainingInSplit = 0;
       }
@@ -134,28 +143,34 @@ public class FixedLengthRecordReader
     }
     boolean dataRead = false;
     value.setSize(recordLength);
-    byte[] record = value.getBytes();
-    if (numRecordsRemainingInSplit > 0) {
+    byte[] record = value.getBytes();//最终存储一行数据的字节数量
+    
+    if (numRecordsRemainingInSplit > 0) {//说明还有记录可以被读取
       key.set(pos);
-      int offset = 0;
-      int numBytesToRead = recordLength;
-      int numBytesRead = 0;
+      
+      int offset = 0;//已经读取了多少个字节在value的缓冲池里面
+      int numBytesToRead = recordLength;//要求读取多少个字节
+      
+      int numBytesRead = 0;//真正读取了多少个字节
+      
       while (numBytesToRead > 0) {
-        numBytesRead = inputStream.read(record, offset, numBytesToRead);
+        numBytesRead = inputStream.read(record, offset, numBytesToRead);//从inputStream中读取字节,存储到record中,从0位置开始存储,存储numBytesToRead个字节为止
         if (numBytesRead == -1) {
           // EOF
           break;
         }
-        offset += numBytesRead;
-        numBytesToRead -= numBytesRead;
+        offset += numBytesRead;//移动value缓冲池指针
+        numBytesToRead -= numBytesRead;//减少还要读取多少个字节
       }
-      numBytesRead = recordLength - numBytesToRead;
-      pos += numBytesRead;
+      
+      
+      numBytesRead = recordLength - numBytesToRead;//基本上numBytesToRead都是0,因此numBytesRead总共读取了多少字节,应该等于recordLength,因此我觉得这行代码没什么用
+      pos += numBytesRead;//偏移位置更改
       if (numBytesRead > 0) {
         dataRead = true;
         if (numBytesRead >= recordLength) {
           if (!isCompressedInput) {
-            numRecordsRemainingInSplit--;
+            numRecordsRemainingInSplit--;//减少一个数据
           }
         } else {
           throw new IOException("Partial record(length = " + numBytesRead

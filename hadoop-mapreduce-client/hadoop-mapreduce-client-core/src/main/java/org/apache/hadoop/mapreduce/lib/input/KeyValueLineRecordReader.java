@@ -33,16 +33,18 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
  * separator character. The separator can be specified in config file 
  * under the attribute name mapreduce.input.keyvaluelinerecordreader.key.value.separator. The default
  * separator is the tab character ('\t').
+ * 
+ * key不再是偏移量了,而是具体的Text内容
  */
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public class KeyValueLineRecordReader extends RecordReader<Text, Text> {
   public static final String KEY_VALUE_SEPERATOR = 
-    "mapreduce.input.keyvaluelinerecordreader.key.value.separator";
+    "mapreduce.input.keyvaluelinerecordreader.key.value.separator";//key-value的拆分符号,只能是一个字节
   
   private final LineRecordReader lineRecordReader;
 
-  private byte separator = (byte) '\t';
+  private byte separator = (byte) '\t';//默认是tab拆分
 
   private Text innerValue;
 
@@ -62,9 +64,10 @@ public class KeyValueLineRecordReader extends RecordReader<Text, Text> {
 
   public void initialize(InputSplit genericSplit,
       TaskAttemptContext context) throws IOException {
-    lineRecordReader.initialize(genericSplit, context);
+    lineRecordReader.initialize(genericSplit, context);//对数据块进行初始化
   }
   
+  //找到第一次出现分隔符的位置
   public static int findSeparator(byte[] utf, int start, int length, 
       byte sep) {
     for (int i = start; i < (start + length); i++) {
@@ -75,12 +78,13 @@ public class KeyValueLineRecordReader extends RecordReader<Text, Text> {
     return -1;
   }
 
+  //设置key-value的内容,从line一行内容中,第pos位置开始截断,一部分是key,一部分是value
   public static void setKeyValue(Text key, Text value, byte[] line,
       int lineLen, int pos) {
-    if (pos == -1) {
+    if (pos == -1) {//说明没有分隔符,则都是key,value为空
       key.set(line, 0, lineLen);
       value.set("");
-    } else {
+    } else {//设置key和value
       key.set(line, 0, pos);
       value.set(line, pos + 1, lineLen - pos - 1);
     }
@@ -88,12 +92,12 @@ public class KeyValueLineRecordReader extends RecordReader<Text, Text> {
   /** Read key/value pair in a line. */
   public synchronized boolean nextKeyValue()
     throws IOException {
-    byte[] line = null;
-    int lineLen = -1;
-    if (lineRecordReader.nextKeyValue()) {
-      innerValue = lineRecordReader.getCurrentValue();
-      line = innerValue.getBytes();
-      lineLen = innerValue.getLength();
+    byte[] line = null;//一行内容
+    int lineLen = -1;//一行一共多少个字节
+    if (lineRecordReader.nextKeyValue()) {//读取一行内容
+      innerValue = lineRecordReader.getCurrentValue();//获取一行的信息
+      line = innerValue.getBytes();//一行内容
+      lineLen = innerValue.getLength();//一行一共多少个字节
     } else {
       return false;
     }
@@ -105,8 +109,8 @@ public class KeyValueLineRecordReader extends RecordReader<Text, Text> {
     if (value == null) {
       value = new Text();
     }
-    int pos = findSeparator(line, 0, lineLen, this.separator);
-    setKeyValue(key, value, line, lineLen, pos);
+    int pos = findSeparator(line, 0, lineLen, this.separator);//从一行内容中找到分隔符
+    setKeyValue(key, value, line, lineLen, pos);//设置key-value的内容
     return true;
   }
   

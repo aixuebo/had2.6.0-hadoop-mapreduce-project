@@ -31,6 +31,7 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
  * This class is similar to SequenceFileInputFormat, except it generates
  * SequenceFileAsTextRecordReader which converts the input keys and values
  * to their String forms by calling toString() method. 
+ * 读取序列化文件,只是返回值不再是泛型,而是具体的类型,key和value都是Text类型的时候使用该类去读取
  */
 @InterfaceAudience.Public
 @InterfaceStability.Stable

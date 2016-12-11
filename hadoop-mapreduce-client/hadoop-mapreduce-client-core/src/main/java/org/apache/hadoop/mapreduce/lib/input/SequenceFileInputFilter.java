@@ -43,6 +43,7 @@ import org.apache.hadoop.util.ReflectionUtils;
 /**
  * A class that allows a map/red job to work on a sample of sequence files.
  * The sample is decided by the filter class set by the job.
+ * 该类就是读取序列化文件,也是读取了全部的数据,只是不是所有的数据都要被处理,只处理filter过滤成true的记录才会被map处理
  */
 @InterfaceAudience.Public
 @InterfaceStability.Stable
@@ -51,11 +52,11 @@ public class SequenceFileInputFilter<K, V>
   public static final Log LOG = LogFactory.getLog(FileInputFormat.class);
   
   final public static String FILTER_CLASS = 
-    "mapreduce.input.sequencefileinputfilter.class";
+    "mapreduce.input.sequencefileinputfilter.class";//真正的过滤器类
   final public static String FILTER_FREQUENCY = 
-    "mapreduce.input.sequencefileinputfilter.frequency";
+    "mapreduce.input.sequencefileinputfilter.frequency";//基于频率过滤,每次达到这个频率的时候,就返回一次true
   final public static String FILTER_REGEX = 
-    "mapreduce.input.sequencefileinputfilter.regex";
+    "mapreduce.input.sequencefileinputfilter.regex";//基于正则表达式进行过滤时候,输入正则表达式的key,通过该key可以得到对应的正则表达式
     
   public SequenceFileInputFilter() {
   }
@@ -106,9 +107,10 @@ public class SequenceFileInputFilter<K, V>
   }
     
   /** Records filter by matching key to regex
+   * 基于正则表达式去过滤
    */
   public static class RegexFilter extends FilterBase {
-    private Pattern p;
+    private Pattern p;//正则表达式
     /** Define the filtering regex and stores it in conf
      * @param conf where the regex is set
      * @param regex regex used as a filter
@@ -128,7 +130,7 @@ public class SequenceFileInputFilter<K, V>
     /** configure the Filter by checking the configuration
      */
     public void setConf(Configuration conf) {
-      String regex = conf.get(FILTER_REGEX);
+      String regex = conf.get(FILTER_REGEX);//获取正则表达式
       if (regex == null)
         throw new RuntimeException(FILTER_REGEX + "not set");
       this.p = Pattern.compile(regex);
@@ -139,6 +141,7 @@ public class SequenceFileInputFilter<K, V>
     /** Filtering method
      * If key matches the regex, return true; otherwise return false
      * @see Filter#accept(Object)
+     * 判断是否符合正则表达式
      */
     public boolean accept(Object key) {
       return p.matcher(key.toString()).matches();
@@ -151,7 +154,7 @@ public class SequenceFileInputFilter<K, V>
    * For example, if the frequency is 10, one out of 10 records is returned.
    */
   public static class PercentFilter extends FilterBase {
-    private int frequency;
+    private int frequency;//基于频率过滤,每次达到这个频率的时候,就返回一次true
     private int count;
 
     /** set the frequency and stores it in conf
@@ -188,7 +191,7 @@ public class SequenceFileInputFilter<K, V>
       boolean accepted = false;
       if (count == 0)
         accepted = true;
-      if (++count == frequency) {
+      if (++count == frequency) {//基于频率过滤,每次达到这个频率的时候,就返回一次true
         count = 0;
       }
       return accepted;
@@ -201,9 +204,9 @@ public class SequenceFileInputFilter<K, V>
    */
   public static class MD5Filter extends FilterBase {
     private int frequency;
-    private static final MessageDigest DIGESTER;
+    private static final MessageDigest DIGESTER;//加密算法
     public static final int MD5_LEN = 16;
-    private byte [] digest = new byte[MD5_LEN];
+    private byte [] digest = new byte[MD5_LEN];//最终用于存储MD5的数据结果
         
     static {
       try {
@@ -257,7 +260,7 @@ public class SequenceFileInputFilter<K, V>
           bb = Text.encode(key.toString());
           hashcode = MD5Hashcode(bb.array(), 0, bb.limit());
         }
-        if (hashcode / frequency * frequency == hashcode)
+        if (hashcode / frequency * frequency == hashcode) //表示hashcode 正好被frequency整除的时候,才会结果依然是hashcode,即只有MD5(key) % frequency==0 整除,没有余数的时候,才会算该值
           return true;
       } catch(Exception e) {
         LOG.warn(e);
@@ -274,10 +277,11 @@ public class SequenceFileInputFilter<K, V>
       return MD5Hashcode(key.getBytes(), 0, key.getLength());
     }
     
+    //对字节数组进行MD5设置,然后再进行hash,返回一个long值
     synchronized private long MD5Hashcode(byte[] bytes, 
         int start, int length) throws DigestException {
       DIGESTER.update(bytes, 0, length);
-      DIGESTER.digest(digest, 0, MD5_LEN);
+      DIGESTER.digest(digest, 0, MD5_LEN);//生成MD5数据
       long hashcode=0;
       for (int i = 0; i < 8; i++)
         hashcode |= ((digest[i] & 0xffL) << (8 * (7 - i)));
@@ -304,7 +308,7 @@ public class SequenceFileInputFilter<K, V>
         throws IOException, InterruptedException {
       while (super.nextKeyValue()) {
         key = super.getCurrentKey();
-        if (filter.accept(key)) {
+        if (filter.accept(key)) {//只有过滤器通过的数据才会被处理,虽然也是加载了所有的数据,但是只是符合过滤器通过的数据才会被map处理成一条记录
           value = super.getCurrentValue();
           return true;
         }

@@ -33,6 +33,8 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
  * This class converts the input keys and values to their String forms by
  * calling toString() method. This class to SequenceFileAsTextInputFormat
  * class is as LineRecordReader class to TextInputFormat class.
+ * 读取序列化文件,只是返回值不再是泛型,而是具体的类型,key和value都是Text类型的时候使用该类去读取
+ * 只要key和value是Writable接口的,都可以被转换成Text,只要调用Writable的toString方法即可
  */
 @InterfaceAudience.Public
 @InterfaceStability.Stable

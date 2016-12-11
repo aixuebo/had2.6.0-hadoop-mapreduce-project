@@ -41,6 +41,9 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
  * conf.setInt(FixedLengthInputFormat.FIXED_RECORD_LENGTH, recordLength);
  * <br><br>
  * @see FixedLengthRecordReader
+ * 
+ * 
+ * FileInputFormat是一行一行读取数据,每一个map方法按照行进行拆分,而本类是根据固定字节长度为一段内容进行拆分
  */
 @InterfaceAudience.Public
 @InterfaceStability.Stable
@@ -48,7 +51,7 @@ public class FixedLengthInputFormat
     extends FileInputFormat<LongWritable, BytesWritable> {
 
   public static final String FIXED_RECORD_LENGTH =
-      "fixedlengthinputformat.record.length"; 
+      "fixedlengthinputformat.record.length"; //固定字节数
 
   /**
    * Set the length of each record

@@ -31,6 +31,7 @@ import org.apache.hadoop.util.ReflectionUtils;
  * mappers.
  * 
  * @see MultipleInputs#addInputPath(Job, Path, Class, Class)
+ * 正常一个map处理全部数据源,因此不会靠谱map的问题,现在是一个job有多个输入源,每个输入源可能对应不同的map类,因此要存储该数据源对应的map
  */
 @InterfaceAudience.Private
 @InterfaceStability.Unstable
@@ -42,7 +43,7 @@ public class DelegatingMapper<K1, V1, K2, V2> extends Mapper<K1, V1, K2, V2> {
   protected void setup(Context context)
       throws IOException, InterruptedException {
     // Find the Mapper from the TaggedInputSplit.
-    TaggedInputSplit inputSplit = (TaggedInputSplit) context.getInputSplit();
+    TaggedInputSplit inputSplit = (TaggedInputSplit) context.getInputSplit();//获取对应的数据切片,该切片中可以知道该数据切片对应哪个map处理
     mapper = (Mapper<K1, V1, K2, V2>) ReflectionUtils.newInstance(inputSplit
        .getMapperClass(), context.getConfiguration());
     

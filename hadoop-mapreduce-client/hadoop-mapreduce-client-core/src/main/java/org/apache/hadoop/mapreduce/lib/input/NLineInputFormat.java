@@ -55,12 +55,14 @@ import org.apache.hadoop.util.LineReader;
  * a value to one map task, and key is the offset.
  * i.e. (k,v) is (LongWritable, Text).
  * The location hints will span the whole mapred cluster.
+ * 
+ * 对文件进行拆分,按照多少行数据做为一个数据分片进行拆分,但是依然是每一行进行一次map处理
  */
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public class NLineInputFormat extends FileInputFormat<LongWritable, Text> { 
   public static final String LINES_PER_MAP = 
-    "mapreduce.input.lineinputformat.linespermap";
+    "mapreduce.input.lineinputformat.linespermap";//多少行为一个数据分片
 
   public RecordReader<LongWritable, Text> createRecordReader(
       InputSplit genericSplit, TaskAttemptContext context) 
@@ -81,7 +83,7 @@ public class NLineInputFormat extends FileInputFormat<LongWritable, Text> {
     int numLinesPerSplit = getNumLinesPerSplit(job);
     for (FileStatus status : listStatus(job)) {
       splits.addAll(getSplitsForFile(status,
-        job.getConfiguration(), numLinesPerSplit));
+        job.getConfiguration(), numLinesPerSplit));//每一个文件按照行数进行拆分分片
     }
     return splits;
   }
@@ -97,23 +99,30 @@ public class NLineInputFormat extends FileInputFormat<LongWritable, Text> {
     LineReader lr = null;
     try {
       FSDataInputStream in  = fs.open(fileName);
-      lr = new LineReader(in, conf);
-      Text line = new Text();
-      int numLines = 0;
+      lr = new LineReader(in, conf);//文件输入流
+      
+      Text line = new Text();//读取一行内容
+      int numLines = 0;//读取了多少行
+      
       long begin = 0;
-      long length = 0;
-      int num = -1;
-      while ((num = lr.readLine(line)) > 0) {
+      long length = 0;//总共N行读取了多少个字节
+      
+      int num = -1;//当前一行有多少个字节
+      
+      while ((num = lr.readLine(line)) > 0) {//读取一行内容,返回读取字节数
         numLines++;
         length += num;
-        if (numLines == numLinesPerSplit) {
+        if (numLines == numLinesPerSplit) {//n行为一个数据分片
           splits.add(createFileSplit(fileName, begin, length));
-          begin += length;
+          
+          begin += length;//重新计算开始位置
+          
+          //清空数据
           length = 0;
           numLines = 0;
         }
       }
-      if (numLines != 0) {
+      if (numLines != 0) {//最后一部分为一个数据分片
         splits.add(createFileSplit(fileName, begin, length));
       }
     } finally {

@@ -39,9 +39,9 @@ import org.apache.hadoop.util.ReflectionUtils;
 @InterfaceStability.Stable
 public class MultipleInputs {
   public static final String DIR_FORMATS = 
-    "mapreduce.input.multipleinputs.dir.formats";
+    "mapreduce.input.multipleinputs.dir.formats";//每一个path对应一种数据格式,格式:path;inputFormatClass,path;inputFormatClass
   public static final String DIR_MAPPERS = 
-    "mapreduce.input.multipleinputs.dir.mappers";
+    "mapreduce.input.multipleinputs.dir.mappers";//每一个path对应一种处理方式,格式:path;mapperClass,path;mapperClass
   
   /**
    * Add a {@link Path} with a custom {@link InputFormat} to the list of
@@ -50,6 +50,7 @@ public class MultipleInputs {
    * @param job The {@link Job}
    * @param path {@link Path} to be added to the list of inputs for the job
    * @param inputFormatClass {@link InputFormat} class to use for this path
+   * 每一个path对应一种数据格式
    */
   @SuppressWarnings("unchecked")
   public static void addInputPath(Job job, Path path,
@@ -73,20 +74,22 @@ public class MultipleInputs {
    * @param path {@link Path} to be added to the list of inputs for the job
    * @param inputFormatClass {@link InputFormat} class to use for this path
    * @param mapperClass {@link Mapper} class to use for this path
+   * 每一个path对应一个class处理方式
    */
   @SuppressWarnings("unchecked")
   public static void addInputPath(Job job, Path path,
       Class<? extends InputFormat> inputFormatClass,
       Class<? extends Mapper> mapperClass) {
 
-    addInputPath(job, path, inputFormatClass);
+    addInputPath(job, path, inputFormatClass);//每一个path对应一种数据格式
+    
     Configuration conf = job.getConfiguration();
     String mapperMapping = path.toString() + ";" + mapperClass.getName();
     String mappers = conf.get(DIR_MAPPERS);
     conf.set(DIR_MAPPERS, mappers == null ? mapperMapping
        : mappers + "," + mapperMapping);
 
-    job.setMapperClass(DelegatingMapper.class);
+    job.setMapperClass(DelegatingMapper.class);//这个是真正执行的map,该map会根据数据块需要哪种map,然后进行处理
   }
 
   /**

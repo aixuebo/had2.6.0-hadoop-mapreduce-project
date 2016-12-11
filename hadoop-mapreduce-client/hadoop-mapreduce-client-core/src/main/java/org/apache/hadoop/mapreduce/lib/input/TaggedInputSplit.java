@@ -40,16 +40,21 @@ import org.apache.hadoop.util.StringInterner;
 /**
  * An {@link InputSplit} that tags another InputSplit with extra data for use
  * by {@link DelegatingInputFormat}s and {@link DelegatingMapper}s.
+ * 一个分片的信息除了分片长度 以及 location位置外,还可以有额外的标签信息
+ * 
+ * 这样可以让多个不同类型的数据块被同一个job处理,只要不同的map方法处理不同的数据类型即可
  */
 class TaggedInputSplit extends InputSplit implements Configurable, Writable {
 
+  //表示具体的split分片,属于父类
   private Class<? extends InputSplit> inputSplitClass;
-
   private InputSplit inputSplit;
 
+  //定义该数据块要用什么方式对他进行加载,比如是Text的还是key-value的 还是固定字节大小的方式
   @SuppressWarnings("unchecked")
   private Class<? extends InputFormat> inputFormatClass;
 
+  //处理该数据块的map类
   @SuppressWarnings("unchecked")
   private Class<? extends Mapper> mapperClass;
 

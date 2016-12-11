@@ -41,6 +41,8 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
  * The separator byte can be specified in config file under the attribute name
  * mapreduce.input.keyvaluelinerecordreader.key.value.separator. The default
  * is the tab character ('\t').
+ * 
+ * key不再是偏移量了,而是具体的Text内容
  */
 @InterfaceAudience.Public
 @InterfaceStability.Stable
